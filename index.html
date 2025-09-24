@@ -6,7 +6,6 @@
     <meta name="description" content="Online Auto Track Timer - Online stopwatch for stopwatch sports like pumptrack racing.">
     <title>Pace Timer</title>
     <link rel="stylesheet" href="styles.css">
-    <!-- Incluye el script de Google Translate -->
     <script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 </head>
 <body>
@@ -32,11 +31,11 @@
             <button id="navigateButton" aria-label="Go to the timer page">Start the Timer Now</button>
         </div>
     </section>
-    <section class="hero" id="home2"> <!-- Cambié el id a "home2" para evitar duplicados -->
+    <section class="hero" id="home2">
         <div class="hero-overlay">
-            <h2>Track Times, Send to PC Automactly.</h2>
+            <h2>Track Times, Send to PC Automatically.</h2>
             <p>Send recorded times automatically to your computer.</p>
-            <button id="navigateBut2" aria-label="Go to the timer page">Start the Timer Now</button>
+            <button id="navigateBut2" aria-label="Go to the results page">Start the Timer Now</button>
         </div>
     </section>
     <main>
@@ -81,22 +80,17 @@
     <footer>
     </footer>
     <script>
-        // Inicializa Google Translate
         function googleTranslateElementInit() {
             new google.translate.TranslateElement({
-                pageLanguage: 'en', // Idioma predeterminado de la página
-                autoDisplay: false // Evita mostrar el widget automáticamente
+                pageLanguage: 'en',
+                autoDisplay: false
             }, 'google_translate_element');
 
-            // Detecta el idioma del navegador
             const userLang = navigator.language || navigator.userLanguage || 'en';
-            const targetLang = userLang.split('-')[0]; // Obtiene el idioma base (ej: 'es' de 'es-ES')
-
-            // Si el idioma del navegador no es inglés, traduce la página
+            const targetLang = userLang.split('-')[0];
             if (targetLang !== 'en') {
                 const translate = new google.translate.TranslateElement();
-                translate.showBanner = false; // Oculta cualquier banner
-                // Ejecuta la traducción automáticamente
+                translate.showBanner = false;
                 const translateFrame = document.createElement('iframe');
                 translateFrame.style.display = 'none';
                 document.body.appendChild(translateFrame);
@@ -104,17 +98,14 @@
             }
         }
 
-        // Funcionalidad del botón de navegación
         document.getElementById('navigateButton').addEventListener('click', () => {
             window.location.href = 'timer/timer.html';
         });
 
-        // Añadido: Funcionalidad para navigateBut2
         document.getElementById('navigateBut2').addEventListener('click', () => {
-            window.location.href = 'Construccion/Construccion.html';
+            window.location.href = 'timer_PC/PC/PC.html';
         });
 
-        // Smooth scroll para los enlaces de navegación
         document.querySelectorAll('.nav-link').forEach(link => {
             link.addEventListener('click', (e) => {
                 const href = link.getAttribute('href');

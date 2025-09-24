@@ -3,40 +3,102 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stopwatch with QR and Chat</title>
-    <link rel="stylesheet" href="PCstyles.css">
-    <!-- QRCode.js -->
-    <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
-    <!-- Firebase -->
-    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database.js"></script>
+    <title>Pace Track Timer - Resultados</title>
+    <link rel="stylesheet" href="/styles.css"> <!-- Reutilizamos styles.css de index.html -->
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 </head>
 <body>
-    <!-- Cronómetro -->
-    <div class="stopwatch-container">
-        <div class="stopwatch" id="stopwatch">00:00.00</div>
-    </div>
+    <header>
+        <a href="/index.html" aria-label="Back to home">
+            <img src="/images/mi_logo.png" alt="Pumptrack Timer Logo" class="logo">
+        </a>
+        <h1>Pace Track Timer - Resultados</h1>
+        <p class="subtitle">Escanea el QR con tu móvil para empezar a cronometrar</p>
+    </header>
+    <main>
+        <section class="hero">
+            <div class="hero-overlay">
+                <h2>Tiempos de la Sesión</h2>
+                <div id="qrcode" style="margin: 1rem auto; text-align: center;"></div>
+                <div id="status-message">Cargando tiempos...</div>
+                <div id="laps-container" class="feature-grid">
+                    <h3>Tiempos de Paso</h3>
+                    <ul id="laps-list"></ul>
+                </div>
+            </div>
+        </section>
+    </main>
+    <footer>
+    </footer>
+    <script>
+        const firebaseConfig = {
+        apiKey: "AIzaSyC_IPrOClJF0uIkQB_yIEMdZZ28AgCE4Qk",
+        authDomain: "pacetrack-579ef.firebaseapp.com",
+        databaseURL: "https://pacetrack-579ef-default-rtdb.europe-west1.firebasedatabase.app",
+        projectId: "pacetrack-579ef",
+        torageBucket: "pacetrack-579ef.firebasestorage.app",
+        messagingSenderId: "997850928548",
+        appId: "1:997850928548:web:ce6bf324a6a2c42d4bdd31",
+        measurementId: "G-M7E0JYMVGX"
+        };
 
-    <!-- Lista de tiempos -->
-    <div class="time-list">
-        <h2>Tiempos</h2>
-        <ul id="timeList"></ul>
-    </div>
 
-    <!-- QR fijo en esquina -->
-    <div id="qr-container">
-        <canvas id="qrcode"></canvas>
-    </div>
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
 
-    <!-- Chat en tiempo real -->
-    <div id="chat-container">
-        <div id="mensajes"></div>
-        <input id="mensaje" placeholder="Escribe tu mensaje">
-        <button id="enviar">Enviar</button>
-    </div>
+        const sessionId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
 
-    <!-- Script -->
-    <script src="PCscript.js"></script>
-    <script src="chatQR.js"></script>
+        const qrcodeContainer = document.getElementById('qrcode');
+        const qrUrl = `https://pacetrack.netlify.app/timer/timer.html?session=${sessionId}`;
+        QRCode.toCanvas(qrUrl, { width: 200 }, function (error, canvas) {
+            if (error) {
+                console.error('Error generando QR:', error);
+                document.getElementById('status-message').textContent = 'Error al generar el código QR';
+                return;
+            }
+            qrcodeContainer.appendChild(canvas);
+        });
+
+        const statusMessage = document.getElementById('status-message');
+        const lapsList = document.getElementById('laps-list');
+        const lapsContainer = document.getElementById('laps-container');
+
+        function formatTime(milliseconds) {
+            const minutes = Math.floor(milliseconds / 60000);
+            const seconds = Math.floor((milliseconds % 60000) / 1000);
+            const ms = Math.floor(milliseconds % 1000);
+            return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
+        }
+
+        function displayLaps(laps) {
+            lapsList.innerHTML = '';
+            if (laps && laps.length > 0) {
+                lapsContainer.style.display = 'block';
+                laps.forEach((lap, index) => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<span>P${index + 1}:</span> <span>${formatTime(lap)}</span>`;
+                    lapsList.appendChild(li);
+                });
+                lapsList.scrollTop = lapsList.scrollHeight;
+            } else {
+                lapsContainer.style.display = 'none';
+                statusMessage.textContent = 'No hay tiempos registrados en esta sesión. Escanea el QR para empezar.';
+            }
+        }
+
+        database.ref(`sessions/${sessionId}/laps`).on('value', (snapshot) => {
+            const laps = snapshot.val();
+            displayLaps(laps);
+            statusMessage.textContent = 'Tiempos actualizados en tiempo real.';
+        }, (error) => {
+            console.error('Error al leer tiempos:', error);
+            statusMessage.textContent = 'Error al cargar los tiempos.';
+        });
+    </script>
 </body>
 </html>

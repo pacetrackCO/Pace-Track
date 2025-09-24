@@ -1,3 +1,20 @@
+const firebaseConfig = {
+  apiKey: "AIzaSyC_IPrOClJF0uIkQB_yIEMdZZ28AgCE4Qk",
+  authDomain: "pacetrack-579ef.firebaseapp.com",
+  databaseURL: "https://pacetrack-579ef-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "pacetrack-579ef",
+  storageBucket: "pacetrack-579ef.firebasestorage.app",
+  messagingSenderId: "997850928548",
+  appId: "1:997850928548:web:ce6bf324a6a2c42d4bdd31",
+  measurementId: "G-M7E0JYMVGX"
+};
+
+firebase.initializeApp(firebaseConfig);
+const database = firebase.database();
+
+const urlParams = new URLSearchParams(window.location.search);
+const sessionId = urlParams.get('session') || null;
+
 // Variables globales
 const video = document.getElementById('video');
 const overlayCanvas = document.getElementById('overlay-canvas');
@@ -30,34 +47,22 @@ let calibrationSamples = [];
 const calibrationDuration = 3000;
 let recordedLaps = [];
 
-// Funciones de utilidad
-async function sendLapsToServer(laps) {
-    try {
-        const response = await fetch('/.netlify/functions/save-laps', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ laps }),
-        });
-
-        const result = await response.json();
-        if (response.ok) {
-            console.log('Tiempos enviados con éxito:', result);
-            statusMessage.textContent = 'Tiempos enviados al servidor';
-        } else {
-            console.error('Error al enviar tiempos:', result.error);
-            showMessageBox('Error al enviar los tiempos: ' + result.error);
-        }
-    } catch (error) {
-        console.error('Error de red:', error);
-        showMessageBox('Error de conexión al enviar los tiempos');
-    }
-}
-
 function saveLaps() {
     localStorage.setItem('recordedLaps', JSON.stringify(recordedLaps));
-    sendLapsToServer(recordedLaps); // Enviar automáticamente al servidor
+    if (sessionId) {
+        database.ref(`sessions/${sessionId}/laps`).set(recordedLaps)
+            .then(() => {
+                console.log('Tiempos guardados en Firebase');
+                statusMessage.textContent = 'Tiempos enviados al servidor';
+            })
+            .catch(error => {
+                console.error('Error al guardar tiempos:', error);
+                showMessageBox('Error al guardar los tiempos en el servidor');
+            });
+    } else {
+        console.warn('No sessionId provided, times saved locally only');
+        statusMessage.textContent = 'No se proporcionó un ID de sesión, tiempos guardados localmente';
+    }
 }
 
 function loadLaps() {
@@ -131,7 +136,6 @@ function vibrate(pattern) {
     }
 }
 
-// Configuración de cámara y calibración
 async function setupCamera() {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -181,12 +185,10 @@ function startCalibration() {
         lastDisplayedTime = 0;
         timerDisplay.style.color = '#e2e8f0';
         
-        showMessageBox(`Calibración completa. Umbral de detección inicial: ${detectionThreshold.toFixed(0)}. Ahora, el primer paso iniciará el cronómetro.`);
-        console.log(`Calibración: Ruido promedio = ${averageNoise.toFixed(2)}. Umbral ajustado a: ${detectionThreshold.toFixed(0)}.`);
+        showMessageBox(`Calibración completa. Umbral de detección inicial: ${detectionThreshold.toFixed(0)}.`);
     }, calibrationDuration);
 }
 
-// Detección de movimiento
 function detectMovement() {
     if (video.paused || video.ended || !video.videoWidth) {
         animationFrameId = requestAnimationFrame(detectMovement);
@@ -276,7 +278,6 @@ function detectMovement() {
     animationFrameId = requestAnimationFrame(detectMovement);
 }
 
-// Event listeners
 resetButton.addEventListener('click', () => {
     cancelAnimationFrame(animationFrameId);
     clearTimeout(calibrationTimeoutId);
@@ -309,8 +310,10 @@ messageBoxOkButton.addEventListener('click', () => {
     messageBox.style.display = 'none';
 });
 
-// Inicialización
 window.addEventListener('load', () => {
+    if (!sessionId) {
+        showMessageBox('No se proporcionó un ID de sesión. Por favor, escanea el código QR desde la página de resultados.');
+    }
     setupCamera();
     loadLaps();
 });
