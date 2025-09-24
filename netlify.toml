@@ -1,0 +1,7 @@
+# netlify.toml - Configuración para sitio HTML/CSS/JS estático
+[build]
+  command = ""          # No ejecutar build
+  publish = "."         # Carpeta donde está tu index.html
+
+[functions]
+  directory = "netlify/functions"  # Solo si usas funciones serverless

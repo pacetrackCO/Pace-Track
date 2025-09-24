@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stopwatch with QR and Chat</title>
+    <link rel="stylesheet" href="PCstyles.css">
+    <!-- QRCode.js -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database.js"></script>
+</head>
+<body>
+    <!-- Cronómetro -->
+    <div class="stopwatch-container">
+        <div class="stopwatch" id="stopwatch">00:00.00</div>
+    </div>
+
+    <!-- Lista de tiempos -->
+    <div class="time-list">
+        <h2>Tiempos</h2>
+        <ul id="timeList"></ul>
+    </div>
+
+    <!-- QR fijo en esquina -->
+    <div id="qr-container">
+        <canvas id="qrcode"></canvas>
+    </div>
+
+    <!-- Chat en tiempo real -->
+    <div id="chat-container">
+        <div id="mensajes"></div>
+        <input id="mensaje" placeholder="Escribe tu mensaje">
+        <button id="enviar">Enviar</button>
+    </div>
+
+    <!-- Script -->
+    <script src="PCscript.js"></script>
+    <script src="chatQR.js"></script>
+</body>
+</html>

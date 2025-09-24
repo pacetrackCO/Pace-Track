@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Online Auto Track Timer - Online stopwatch for stopwatch sports like pumptrack racing.">
+    <title>Pace Timer</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Incluye el script de Google Translate -->
+    <script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+</head>
+<body>
+    <header>
+        <a href="index.html" aria-label="Back to home">
+            <img src="images/mi_logo.png" alt="Pumptrack Timer Logo" class="logo">
+        </a>
+        <h1>Pace Track Timer</h1>
+        <p class="subtitle">Your ultimate online stopwatch for action sports</p>
+        <nav>
+            <ul class="nav-menu">
+                <li><a href="#home" class="nav-link">Home</a></li>
+                <li><a href="#features" class="nav-link">Features</a></li>
+                <li><a href="#contact" class="nav-link">Contact</a></li>
+                <li><a href="timer/timer.html" class="nav-link">Timer</a></li>
+            </ul>
+        </nav>
+    </header>
+    <section class="hero" id="home">
+        <div class="hero-overlay">
+            <h2>Track Your Time, Beat Your Record!</h2>
+            <p>Designed for pumptrack, BMX Race, athletics, and more. Time your runs with precision.</p>
+            <button id="navigateButton" aria-label="Go to the timer page">Start the Timer Now</button>
+        </div>
+    </section>
+    <section class="hero" id="home2"> <!-- Cambié el id a "home2" para evitar duplicados -->
+        <div class="hero-overlay">
+            <h2>Track Times, Send to PC Automactly.</h2>
+            <p>Send recorded times automatically to your computer.</p>
+            <button id="navigateBut2" aria-label="Go to the timer page">Start the Timer Now</button>
+        </div>
+    </section>
+    <main>
+        <section class="features" id="features">
+            <h2>Why Choose Pumptrack Timer?</h2>
+            <div class="feature-grid">
+                <div class="feature-item">
+                    <span class="icon">⏱️</span>
+                    <h3>Precision Timing</h3>
+                    <p>Accurate to the millisecond, perfect for competitive sports.</p>
+                </div>
+                <div class="feature-item">
+                    <span class="icon">🚀</span>
+                    <h3>Easy to Use</h3>
+                    <p>Intuitive interface for quick setup and timing.</p>
+                </div>
+                <div class="feature-item">
+                    <span class="icon">📱</span>
+                    <h3>Mobile-Friendly</h3>
+                    <p>Time your runs anywhere, anytime, on any device.</p>
+                </div>
+            </div>
+        </section>
+        <section class="contact" id="contact">
+            <h2>Get in Touch</h2>
+            <p>Have questions or feedback? Reach out to us!</p>
+            <form id="contactForm" data-netlify="true" name="contact" method="POST" netlify-honeypot="bot-field">
+                <input type="hidden" name="form-name" value="contact">
+                <p class="hidden">
+                    <label>Don't fill this out: <input name="bot-field"></label>
+                </p>
+                <label for="name">Name:</label>
+                <input type="text" id="name" name="name" required placeholder="Your name">
+                <label for="email">Email:</label>
+                <input type="email" id="email" name="email" required placeholder="Your email">
+                <label for="message">Message:</label>
+                <textarea id="message" name="message" required placeholder="Your message"></textarea>
+                <button type="submit">Send Message</button>
+            </form>
+        </section>
+    </main>
+    <footer>
+    </footer>
+    <script>
+        // Inicializa Google Translate
+        function googleTranslateElementInit() {
+            new google.translate.TranslateElement({
+                pageLanguage: 'en', // Idioma predeterminado de la página
+                autoDisplay: false // Evita mostrar el widget automáticamente
+            }, 'google_translate_element');
+
+            // Detecta el idioma del navegador
+            const userLang = navigator.language || navigator.userLanguage || 'en';
+            const targetLang = userLang.split('-')[0]; // Obtiene el idioma base (ej: 'es' de 'es-ES')
+
+            // Si el idioma del navegador no es inglés, traduce la página
+            if (targetLang !== 'en') {
+                const translate = new google.translate.TranslateElement();
+                translate.showBanner = false; // Oculta cualquier banner
+                // Ejecuta la traducción automáticamente
+                const translateFrame = document.createElement('iframe');
+                translateFrame.style.display = 'none';
+                document.body.appendChild(translateFrame);
+                translate.translatePage('en', targetLang, translateFrame.contentWindow);
+            }
+        }
+
+        // Funcionalidad del botón de navegación
+        document.getElementById('navigateButton').addEventListener('click', () => {
+            window.location.href = 'timer/timer.html';
+        });
+
+        // Añadido: Funcionalidad para navigateBut2
+        document.getElementById('navigateBut2').addEventListener('click', () => {
+            window.location.href = 'timer_PC/PC/PC.html';
+        });
+
+        // Smooth scroll para los enlaces de navegación
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                const href = link.getAttribute('href');
+                if (href && href.startsWith('#')) {
+                    e.preventDefault();
+                    const target = document.querySelector(href);
+                    if (target) {
+                        window.scrollTo({
+                            top: target.offsetTop,
+                            behavior: 'smooth'
+                        });
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>

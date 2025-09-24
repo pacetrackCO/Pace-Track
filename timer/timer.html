@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cronómetro de Paso para Atletas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="stylestimer.css">
+    <link rel="stylesheet" href="logo-splash/stylesintro.css">
+</head>
+<body>
+        <img id="logo" src="logo-splash/mi_logo.png" alt="Logo">
+
+    <script src="logo-splash/scriptsintro.js"></script>
+</div>
+    <div id="app-container">
+        <div id="video-container">
+            <video id="video" autoplay playsinline></video>
+            <canvas id="overlay-canvas"></canvas>
+        </div>
+        <div id="timer-display">00:00.000</div>
+        <div id="controls">
+            <button id="reset-button">Reiniciar</button>
+        </div>
+        <div id="status-message">Iniciando cámara...</div>
+        <div id="sensitivity-slider-container">
+            <span>Sensibilidad:</span>
+            <input type="range" id="sensitivity-slider" min="1" max="1000" value="200">
+        </div>
+        <div id="laps-container" style="display:none;">
+            <h3>Tiempos de Paso</h3>
+            <ul id="laps-list">
+            </ul>
+        </div>
+    </div>
+    <div id="message-box" class="message-box">
+        <p id="message-content"></p>
+        <button id="message-box-ok">OK</button>
+    </div>
+    <script src="scripsttimer.js"></script>
+</body>
+</html>
