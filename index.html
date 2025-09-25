@@ -60,22 +60,27 @@
             </div>
         </section>
         <section class="contact" id="contact">
-            <h2>Get in Touch</h2>
-            <p>Have questions or feedback? Reach out to us!</p>
-            <form id="contactForm" data-netlify="true" name="contact" method="POST" netlify-honeypot="bot-field">
-                <input type="hidden" name="form-name" value="contact">
-                <p class="hidden">
-                    <label>Don't fill this out: <input name="bot-field"></label>
-                </p>
-                <label for="name">Name:</label>
-                <input type="text" id="name" name="name" required placeholder="Your name">
-                <label for="email">Email:</label>
-                <input type="email" id="email" name="email" required placeholder="Your email">
-                <label for="message">Message:</label>
-                <textarea id="message" name="message" required placeholder="Your message"></textarea>
-                <button type="submit">Send Message</button>
-            </form>
-        </section>
+    <h2>Get in Touch</h2>
+    <p>Have questions or feedback? Reach out to us!</p>
+    <form id="contactForm" 
+          data-netlify="true" 
+          name="contact" 
+          method="POST" 
+          action="/gracias"  <!-- ¡Agrega esto! Redirige a /gracias después del envío -->
+          netlify-honeypot="bot-field">
+        <input type="hidden" name="form-name" value="contact">
+        <p class="hidden">
+            <label>Don't fill this out: <input name="bot-field"></label>
+        </p>
+        <label for="name">Name:</label>
+        <input type="text" id="name" name="name" required placeholder="Your name">
+        <label for="email">Email:</label>
+        <input type="email" id="email" name="email" required placeholder="Your email">
+        <label for="message">Message:</label>
+        <textarea id="message" name="message" required placeholder="Your message"></textarea>
+        <button type="submit">Send Message</button>
+    </form>
+</section>
     </main>
     <footer>
     </footer>
