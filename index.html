@@ -1,116 +1,117 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Online Auto Track Timer - Online stopwatch for stopwatch sports like pumptrack racing.">
-    <title>Pace Timer</title>
+    <meta name="description" content="Cronómetro en línea para deportes de cronometraje como carreras de pumptrack.">
+    <title>Cronómetro de Ritmo</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 </head>
 <body>
     <header>
-        <a href="index.html" aria-label="Back to home">
-            <img src="images/mi_logo.png" alt="Pumptrack Timer Logo" class="logo">
+        <button id="themeToggle" aria-label="Cambiar tema">🌙</button>
+        <a href="index.html" aria-label="Volver al inicio">
+            <img src="images/mi_logo.png" alt="Logotipo de Cronómetro de Ritmo para deportes de acción" class="logo">
         </a>
-        <h1>Pace Track Timer</h1>
-        <p class="subtitle">Your ultimate online stopwatch for action sports</p>
+        <h1>PaceTrack</h1>
+        <p class="subtitle">Tu cronómetro automatico en linea perfecto.</p>
         <nav>
             <ul class="nav-menu">
-                <li><a href="#home" class="nav-link">Home</a></li>
-                <li><a href="#features" class="nav-link">Features</a></li>
-                <li><a href="#contact" class="nav-link">Contact</a></li>
-                <li><a href="timer/timer.html" class="nav-link">Timer</a></li>
+                <li><a href="#inicio" class="nav-link">Inicio</a></li>
+                <li><a href="#caracteristicas" class="nav-link">Características</a></li>
+                <li><a href="#contacto" class="nav-link">Contacto</a></li>
+                <li><a href="timer/timer.html" class="nav-link">Cronómetro</a></li>
             </ul>
         </nav>
     </header>
-    <section class="hero" id="home">
+    <section class="hero" id="inicio">
         <div class="hero-overlay">
-            <h2>Track Your Time, Beat Your Record!</h2>
-            <p>Designed for pumptrack, BMX Race, athletics, and more. Time your runs with precision.</p>
-            <button id="navigateButton" aria-label="Go to the timer page">Start the Timer Now</button>
+            <h2>¡Registra tu tiempo, supera tu récord!</h2>
+            <p>Diseñado para pumptrack, BMX Race, atletismo y más. Cronometra tus carreras con precisión.</p>
+            <button id="navigateButton" aria-label="Ir a la página del cronómetro">Iniciar PaceTrack Original</button>
         </div>
     </section>
-    <section class="hero" id="home2">
+    <section class="hero" id="inicio2">
         <div class="hero-overlay">
-            <h2>Track Times, Send to PC Automatically.</h2>
-            <p>Send recorded times automatically to your computer.</p>
-            <button id="navigateBut2" aria-label="Go to the results page">Start the Timer Now</button>
+            <h2>Registra Tiempos, Envíalos Automáticamente al PC</h2>
+            <p>Envía los tiempos registrados automáticamente a tu computadora.</p>
+            <button id="navigateBut2" aria-label="Ir a la página de resultados">Iniciar PaceTrack Server</button>
         </div>
     </section>
     <main>
-        <section class="features" id="features">
-            <h2>Why Choose Pumptrack Timer?</h2>
+        <section class="features" id="caracteristicas">
+            <h2>¿Por qué elegir el PaceTrack?</h2>
             <div class="feature-grid">
                 <div class="feature-item">
                     <span class="icon">⏱️</span>
-                    <h3>Precision Timing</h3>
-                    <p>Accurate to the millisecond, perfect for competitive sports.</p>
+                    <h3>Cronometraje Preciso</h3>
+                    <p>Preciso hasta el milisegundo, perfecto para deportes competitivos.</p>
                 </div>
                 <div class="feature-item">
                     <span class="icon">🚀</span>
-                    <h3>Easy to Use</h3>
-                    <p>Intuitive interface for quick setup and timing.</p>
+                    <h3>Fácil de Usar</h3>
+                    <p>Interfaz intuitiva para una configuración y cronometraje rápidos.</p>
                 </div>
                 <div class="feature-item">
                     <span class="icon">📱</span>
-                    <h3>Mobile-Friendly</h3>
-                    <p>Time your runs anywhere, anytime, on any device.</p>
+                    <h3>Compatible con Móviles</h3>
+                    <p>Cronometra tus carreras en cualquier lugar, en cualquier momento, en cualquier dispositivo.</p>
                 </div>
             </div>
         </section>
-        <section class="contact" id="contact">
-    <h2>Get in Touch</h2>
-    <p>Have questions or feedback? Reach out to us!</p>
-    <form id="contactForm" 
-          data-netlify="true" 
-          name="contact" 
-          method="POST" 
-          action="/gracias"
-          netlify-honeypot="bot-field">
-        <input type="hidden" name="form-name" value="contact">
-        <p class="hidden">
-            <label>Don't fill this out: <input name="bot-field"></label>
-        </p>
-        <label for="name">Name:</label>
-        <input type="text" id="name" name="name" required placeholder="Your name">
-        <label for="email">Email:</label>
-        <input type="email" id="email" name="email" required placeholder="Your email">
-        <label for="message">Message:</label>
-        <textarea id="message" name="message" required placeholder="Your message"></textarea>
-        <button type="submit">Send Message</button>
-    </form>
-</section>
+        <section class="contact" id="contacto">
+            <h2>Contáctanos</h2>
+            <p>¿Tienes preguntas o comentarios? ¡Ponte en contacto con nosotros!</p>
+            <form id="contactForm"
+                  data-netlify="true"
+                  name="contacto"
+                  method="POST"
+                  action="/gracias"
+                  netlify-honeypot="bot-field">
+                <input type="hidden" name="form-name" value="contacto">
+                <p class="hidden">
+                    <label>No llenes esto: <input name="bot-field"></label>
+                </p>
+                <label for="name">Nombre:</label>
+                <input type="text" id="name" name="name" required placeholder="Tu nombre" aria-required="true">
+                <label for="email">Correo electrónico:</label>
+                <input type="email" id="email" name="email" required placeholder="Tu correo electrónico" aria-required="true">
+                <label for="message">Mensaje:</label>
+                <textarea id="message" name="message" required placeholder="Tu mensaje" aria-required="true"></textarea>
+                <button type="submit" aria-label="Enviar mensaje">Enviar Mensaje</button>
+            </form>
+        </section>
     </main>
     <footer>
+        <p>&copy; 2025 Cronómetro de Ritmo. Todos los derechos reservados.</p>
+        <div class="social-links">
+            <a href="#" aria-label="Perfil de Facebook">📘</a>
+            <a href="#" aria-label="Perfil de Twitter">🐦</a>
+            <a href="#" aria-label="Perfil de Instagram">📸</a>
+        </div>
     </footer>
+    <div id="notification" class="notification hidden" aria-live="assertive"></div>
     <script>
+        // Inicialización de Google Translate
         function googleTranslateElementInit() {
             new google.translate.TranslateElement({
-                pageLanguage: 'en',
+                pageLanguage: 'es',
                 autoDisplay: false
             }, 'google_translate_element');
-
-            const userLang = navigator.language || navigator.userLanguage || 'en';
+            const userLang = navigator.language || navigator.userLanguage || 'es';
             const targetLang = userLang.split('-')[0];
-            if (targetLang !== 'en') {
+            if (targetLang !== 'es') {
                 const translate = new google.translate.TranslateElement();
                 translate.showBanner = false;
                 const translateFrame = document.createElement('iframe');
                 translateFrame.style.display = 'none';
                 document.body.appendChild(translateFrame);
-                translate.translatePage('en', targetLang, translateFrame.contentWindow);
+                translate.translatePage('es', targetLang, translateFrame.contentWindow);
             }
         }
 
-        document.getElementById('navigateButton').addEventListener('click', () => {
-            window.location.href = 'timer/timer.html';
-        });
-
-        document.getElementById('navigateBut2').addEventListener('click', () => {
-            window.location.href = 'Construccion/Construccion.html';
-        });
-
+        // Navegación suave para enlaces
         document.querySelectorAll('.nav-link').forEach(link => {
             link.addEventListener('click', (e) => {
                 const href = link.getAttribute('href');
@@ -126,6 +127,32 @@
                 }
             });
         });
+
+        // Navegación a otras páginas
+        document.getElementById('navigateButton').addEventListener('click', () => {
+            window.location.href = 'timer/timer.html';
+            showNotification('Redirigiendo al cronómetro...');
+        });
+        document.getElementById('navigateBut2').addEventListener('click', () => {
+            window.location.href = 'Construccion/Construccion.html';
+            showNotification('Redirigiendo a la página de resultados...');
+        });
+
+        // Cambio de tema claro/oscuro
+        document.getElementById('themeToggle').addEventListener('click', () => {
+            document.body.dataset.theme = document.body.dataset.theme === 'dark' ? 'light' : 'dark';
+            showNotification('Tema cambiado a ' + (document.body.dataset.theme === 'dark' ? 'oscuro' : 'claro'));
+        });
+
+        // Mostrar notificaciones
+        function showNotification(message) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.classList.remove('hidden');
+            setTimeout(() => {
+                notification.classList.add('hidden');
+            }, 3000);
+        }
     </script>
 </body>
 </html>
