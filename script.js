@@ -61,3 +61,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 });
+window.addEventListener('scroll', () => {
+    const backToTopButton = document.getElementById('backToTop');
+    backToTopButton.classList.toggle('visible', window.scrollY > 300);
+});
+
+document.getElementById('backToTop').addEventListener('click', () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+});
