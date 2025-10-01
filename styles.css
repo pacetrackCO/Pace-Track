@@ -511,3 +511,54 @@ footer .social-links a:hover {
 .social-links a:hover {
     color: #0056b3;
 }
+/* NUEVOS ESTILOS PARA MEJORAR SEO SIN CAMBIAR DISEÑO */
+.info-section {
+    text-align: center;
+    padding: 3rem 1rem;
+    background-color: var(--card-bg);
+    margin: 2rem auto;
+    max-width: 1000px;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-top: 2rem;
+}
+
+.info-item {
+    padding: 1.5rem;
+    background-color: var(--bg-color);
+    border-radius: 8px;
+    border-left: 4px solid var(--accent-color);
+}
+
+.info-item h3 {
+    color: var(--accent-color);
+    margin-bottom: 0.5rem;
+}
+
+/* Mejoras de accesibilidad */
+.skip-link {
+    position: absolute;
+    top: -40px;
+    left: 6px;
+    background: #000;
+    color: white;
+    padding: 8px;
+    text-decoration: none;
+    z-index: 1000;
+}
+
+.skip-link:focus {
+    top: 0;
+}
+
+.google-translate-container {
+    position: absolute;
+    top: 1rem;
+    right: 120px;
+}
