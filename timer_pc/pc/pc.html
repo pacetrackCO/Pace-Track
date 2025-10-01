@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pace Track Timer - Resultados</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        #qrcode {
+            margin: 1rem auto;
+            text-align: center;
+            min-height: 200px;
+            border: 1px solid #ccc;
+        }
+        #qrcode canvas {
+            display: block !important;
+            margin: 0 auto;
+            visibility: visible !important;
+        }
+        #laps-container {
+            max-width: 500px;
+            margin: 1rem auto;
+        }
+        #laps-list {
+            list-style: none;
+            padding: 0;
+        }
+        #laps-list li {
+            padding: 0.5rem;
+            border-bottom: 1px solid #ccc;
+            display: flex;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <a href="/index.html" aria-label="Back to home">
+            <img src="/images/mi_logo.png" alt="Pumptrack Timer Logo" class="logo">
+        </a>
+        <h1>Pace Track Timer - Resultados</h1>
+        <p class="subtitle">Escanea el QR con tu móvil para empezar a cronometrar</p>
+    </header>
+    <main>
+        <section class="hero">
+            <div class="hero-overlay">
+                <h2>Tiempos de la Sesión</h2>
+                <div id="qrcode"></div>
+                <div id="status-message">Cargando tiempos...</div>
+                <div id="laps-container" class="feature-grid">
+                    <h3>Tiempos de Paso</h3>
+                    <ul id="laps-list"></ul>
+                </div>
+            </div>
+        </section>
+    </main>
+    <footer>
+    </footer>
+    <script src="/timer_PC/PC/PCscripts.js"></script>
+</body>
+</html>
