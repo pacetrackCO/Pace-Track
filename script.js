@@ -9,11 +9,11 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('Element with ID "navigateButton" not found');
     }
 
-    // Redirect for navigateBut2 (to timer_PC/PC/PC.html)
+    // Redirect for navigateBut2 (to timer_PC/timer.html)
     const navigateBut2 = document.getElementById('navigateBut2');
     if (navigateBut2) {
         navigateBut2.addEventListener('click', (e) => {
-            e.preventDefault();
+            e.preventDefault(); // Prevent default behavior if it's an <a> or form button
             console.log('Navigating to timer_PC/PC/PC.html');
             window.location.href = 'timer_PC/PC/PC.html';
         });
@@ -23,33 +23,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Form submission
     const contactForm = document.getElementById('contactForm');
-    if (contactForm) {
-        contactForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            fetch('/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({
-                    'form-name': 'contacto',
-                    ...Object.fromEntries(new FormData(e.target))
-                }).toString()
-            })
-            .then(response => {
-                if (response.ok) {
-                    alert('¡Gracias por tu mensaje! Nos pondremos en contacto pronto.');
-                    e.target.reset();
-                } else {
-                    throw new Error(`Error ${response.status}: ${response.statusText}`);
-                }
-            })
-            .catch(error => {
-                console.error('Error en el envío del formulario:', error);
-                alert('Hubo un error al enviar tu mensaje. Por favor, intenta de nuevo.');
-            });
+if (contactForm) {
+    contactForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        fetch('/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams(new FormData(e.target)).toString()
+        })
+        .then(() => {
+            alert('Thank you for your message! We will get back to you soon.');
+            e.target.reset();
+        })
+        .catch((error) => {
+            console.error('Form submission error:', error);
+            alert('There was an error submitting your message. Please try again.');
         });
-    } else {
-        console.error('Elemento con ID "contactForm" no encontrado');
-    }
+    });
+} else {
+    console.error('Element with ID "contactForm" not found');
+}
 
     // Smooth scroll for nav links
     document.querySelectorAll('.nav-link').forEach(link => {
@@ -68,7 +61,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 });
-
 window.addEventListener('scroll', () => {
     const backToTopButton = document.getElementById('backToTop');
     backToTopButton.classList.toggle('visible', window.scrollY > 300);

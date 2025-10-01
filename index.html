@@ -3,78 +3,166 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PaceTrack</title>
-    <link rel="stylesheet" href="styles.css"> <!-- Asumiendo que tienes un archivo CSS -->
+    <meta name="description" content="Cronómetro en línea para deportes de cronometraje como carreras de pumptrack.">
+    <title>Cronómetro de Ritmo</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+    <meta name="keywords" content="cronómetro, pumptrack, deportes, cronometraje, atletismo, velódromo">
+    <meta name="author" content="PaceTrack">
+    <meta property="og:title" content="PaceTrack - Cronómetro de Ritmo">
+    <meta property="og:description" content="Cronómetro en línea para deportes de cronometraje como carreras de pumptrack.">
+    <meta property="og:image" content="images/mi_logo.png">
+    <meta property="og:url" content="https://www.tu-dominio.com">
+    <meta name="twitter:card" content="summary_large_image">
 </head>
 <body>
     <header>
+        <button id="themeToggle" aria-label="Cambiar tema">🌙</button>
+        <a href="index.html" aria-label="Volver al inicio">
+            <img src="images/mi_logo.png" alt="Logotipo de Cronómetro de Ritmo para deportes de acción" class="logo">
+        </a>
+        <h1>PaceTrack</h1>
+        <p class="subtitle">Tu cronómetro automatico en linea perfecto.</p>
         <nav>
-            <div class="logo">🌙 PaceTrack</div>
-            <ul>
+            <ul class="nav-menu">
                 <li><a href="#inicio" class="nav-link">Inicio</a></li>
                 <li><a href="#caracteristicas" class="nav-link">Características</a></li>
                 <li><a href="#contacto" class="nav-link">Contacto</a></li>
-                <li><a href="#cronometro" class="nav-link">Cronómetro</a></li>
+                <li><a href="timer/timer.html" class="nav-link">Cronómetro</a></li>
             </ul>
         </nav>
     </header>
-
-    <section id="inicio">
-        <h1>¡Registra tu tiempo, supera tu récord!</h1>
-        <p>Diseñado para pumptrack, velódromo, atletismo y más. Cronometra tus vueltas con precisión.</p>
-        <button id="navigateButton">Iniciar PaceTrack Original</button>
-    </section>
-
-    <section id="caracteristicas">
-        <h2>¿Por qué elegir el PaceTrack?</h2>
-        <div class="features">
-            <div>
-                <span>⏱️</span>
-                <h3>Cronometraje Preciso</h3>
-                <p>Preciso hasta el milisegundo, perfecto para deportes competitivos.</p>
-            </div>
-            <div>
-                <span>🚀</span>
-                <h3>Fácil de Usar</h3>
-                <p>Interfaz intuitiva para una configuración y cronometraje rápidos.</p>
-            </div>
-            <div>
-                <span>📱</span>
-                <h3>Compatible con Móviles</h3>
-                <p>Cronometra tus carreras en cualquier lugar, en cualquier momento, en cualquier dispositivo.</p>
-            </div>
+    <section class="hero" id="inicio">
+        <div class="hero-overlay">
+            <h2>¡Registra tu tiempo, supera tu récord!</h2>
+            <p>Diseñado para pumptrack, velodromo, atletismo y más. Cronometra tus vueltas con precisión.</p>
+            <button id="navigateButton" aria-label="Ir a la página del cronómetro">Iniciar PaceTrack Original</button>
         </div>
     </section>
-
-    <section id="contacto">
-        <h2>Contáctanos</h2>
-        <p>¿Tienes preguntas o comentarios? ¡Ponte en contacto con nosotros!</p>
-        <form id="contactForm" name="contacto" method="POST" data-netlify="true" action="/">
-            <input type="hidden" name="form-name" value="contacto">
-            <p style="display: none;">
-                <label>No llenes esto: <input type="text" name="bot-field"></label>
-            </p>
-            <p>
-                <label>Nombre: <input type="text" name="nombre" required></label>
-            </p>
-            <p>
-                <label>Correo electrónico: <input type="email" name="correo" required></label>
-            </p>
-            <p>
-                <label>Mensaje: <textarea name="mensaje" required></textarea></label>
-            </p>
-            <p>
-                <button type="submit">Enviar Mensaje</button>
-            </p>
-        </form>
+    <section class="hero" id="inicio2">
+        <div class="hero-overlay">
+            <h2>Registra Tiempos, Envíalos Automáticamente al PC</h2>
+            <p>Envía los tiempos registrados automáticamente a tu computadora.</p>
+            <button id="navigateBut2" aria-label="Ir a la página de resultados">Iniciar PaceTrack Server</button>
+        </div>
     </section>
-
+    <main>
+        <section class="features" id="caracteristicas">
+            <h2>¿Por qué elegir el PaceTrack?</h2>
+            <div class="feature-grid">
+                <div class="feature-item">
+                    <span class="icon">⏱️</span>
+                    <h3>Cronometraje Preciso</h3>
+                    <p>Preciso hasta el milisegundo, perfecto para deportes competitivos.</p>
+                </div>
+                <div class="feature-item">
+                    <span class="icon">🚀</span>
+                    <h3>Fácil de Usar</h3>
+                    <p>Interfaz intuitiva para una configuración y cronometraje rápidos.</p>
+                </div>
+                <div class="feature-item">
+                    <span class="icon">📱</span>
+                    <h3>Compatible con Móviles</h3>
+                    <p>Cronometra tus carreras en cualquier lugar, en cualquier momento, en cualquier dispositivo.</p>
+                </div>
+            </div>
+        </section>
+        <section class="contact" id="contacto">
+            <h2>Contáctanos</h2>
+            <p>¿Tienes preguntas o comentarios? ¡Ponte en contacto con nosotros!</p>
+            <form id="contactForm" 
+      name="contact" 
+      method="POST" 
+      data-netlify="true"
+      netlify-honeypot="bot-field">
+    <input type="hidden" name="form-name" value="contact">
+    <p class="hidden">
+        <label>No llenes esto: <input name="bot-field"></label>
+    </p>
+    
+    <label for="name">Nombre:</label>
+    <input type="text" id="name" name="name" required>
+    
+    <label for="email">Correo electrónico:</label>
+    <input type="email" id="email" name="email" required>
+    
+    <label for="message">Mensaje:</label>
+    <textarea id="message" name="message" required></textarea>
+    
+    <button type="submit">Enviar Mensaje</button>
+</form>
+        </section>
+    </main>
     <footer>
-        <p>© 2025 Pacetrack.</p>
+        <p>&copy; 2025 Pacetrack.</p>
+    <div class="social-links">
+        <a href="https://instagram.com/aka.alberto" aria-label="Perfil de Instagram"><i class="fab fa-instagram"></i></a>
+    </div>
     </footer>
+    <div id="notification" class="notification hidden" aria-live="assertive"></div>
+    <script>
+        // Inicialización de Google Translate
+        function googleTranslateElementInit() {
+            new google.translate.TranslateElement({
+                pageLanguage: 'es',
+                autoDisplay: false
+            }, 'google_translate_element');
+            const userLang = navigator.language || navigator.userLanguage || 'es';
+            const targetLang = userLang.split('-')[0];
+            if (targetLang !== 'es') {
+                const translate = new google.translate.TranslateElement();
+                translate.showBanner = false;
+                const translateFrame = document.createElement('iframe');
+                translateFrame.style.display = 'none';
+                document.body.appendChild(translateFrame);
+                translate.translatePage('es', targetLang, translateFrame.contentWindow);
+            }
+        }
 
-    <button id="backToTop">⬆</button>
+        // Navegación suave para enlaces
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                const href = link.getAttribute('href');
+                if (href && href.startsWith('#')) {
+                    e.preventDefault();
+                    const target = document.querySelector(href);
+                    if (target) {
+                        window.scrollTo({
+                            top: target.offsetTop,
+                            behavior: 'smooth'
+                        });
+                    }
+                }
+            });
+        });
 
-    <script src="script.js"></script>
+        // Navegación a otras páginas
+        document.getElementById('navigateButton').addEventListener('click', () => {
+            window.location.href = 'timer/timer.html';
+            showNotification('Redirigiendo al cronómetro...');
+        });
+        document.getElementById('navigateBut2').addEventListener('click', () => {
+            window.location.href = 'Construccion/Construccion.html';
+            showNotification('Redirigiendo a la página de resultados...');
+        });
+
+        // Cambio de tema claro/oscuro
+        document.getElementById('themeToggle').addEventListener('click', () => {
+            document.body.dataset.theme = document.body.dataset.theme === 'dark' ? 'light' : 'dark';
+            showNotification('Tema cambiado a ' + (document.body.dataset.theme === 'dark' ? 'oscuro' : 'claro'));
+        });
+
+        // Mostrar notificaciones
+        function showNotification(message) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.classList.remove('hidden');
+            setTimeout(() => {
+                notification.classList.add('hidden');
+            }, 3000);
+        }
+    </script>
+    <button id="backToTop" class="back-to-top" aria-label="Volver arriba">⬆</button>
 </body>
 </html>
