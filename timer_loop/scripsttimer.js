@@ -70,6 +70,13 @@ function formatTime(milliseconds) {
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
 }
 
+function formatTimeForPDF(milliseconds) {
+    const minutes = Math.floor(milliseconds / 60000);
+    const seconds = Math.floor((milliseconds % 60000) / 1000);
+    const ms = Math.floor(milliseconds % 1000);
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
+}
+
 function drawDetectionLine(color = 'rgba(255, 0, 0, 0.7)', isFlashing = false) {
     overlayCtx.beginPath();
     const lineXCoord = overlayCanvas.width * detectionLineX;
@@ -104,6 +111,162 @@ function vibrate(pattern) {
     if (navigator.vibrate) {
         navigator.vibrate(pattern);
     }
+}
+
+// Función para descargar PDF
+function downloadPDF() {
+    if (recordedLaps.length === 0) {
+        showMessageBox('No hay tiempos registrados para descargar.');
+        return;
+    }
+
+    // Crear un nuevo documento PDF
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    // Configuración del documento
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    
+    // Título
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(44, 62, 80);
+    doc.text('REPORTE DE TIEMPOS - CRONÓMETRO', pageWidth / 2, 30, { align: 'center' });
+    
+    // Información de la sesión
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(128, 139, 150);
+    doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 20, 50);
+    doc.text(`Hora: ${new Date().toLocaleTimeString()}`, 20, 60);
+    doc.text(`Total de pasos: ${recordedLaps.length}`, pageWidth - 20, 50, { align: 'right' });
+    
+    // Calcular estadísticas
+    const totalTime = recordedLaps.reduce((sum, lap) => sum + lap, 0);
+    const averageTime = totalTime / recordedLaps.length;
+    const bestTime = Math.min(...recordedLaps);
+    const worstTime = Math.max(...recordedLaps);
+    
+    doc.text(`Tiempo total: ${formatTimeForPDF(totalTime)}`, pageWidth - 20, 60, { align: 'right' });
+    doc.text(`Promedio: ${formatTimeForPDF(averageTime)}`, pageWidth - 20, 70, { align: 'right' });
+    
+    // Línea separadora
+    doc.setDrawColor(200, 200, 200);
+    doc.line(20, 80, pageWidth - 20, 80);
+    
+    // Encabezado de la tabla
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(44, 62, 80);
+    doc.text('PASO', 30, 95);
+    doc.text('TIEMPO', pageWidth - 30, 95, { align: 'right' });
+    
+    // Línea bajo el encabezado
+    doc.setDrawColor(100, 100, 100);
+    doc.line(20, 100, pageWidth - 20, 100);
+    
+    // Lista de tiempos
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    let yPosition = 115;
+    
+    recordedLaps.forEach((lap, index) => {
+        // Cambiar color para el mejor y peor tiempo
+        if (lap === bestTime) {
+            doc.setTextColor(46, 204, 113); // Verde para el mejor tiempo
+        } else if (lap === worstTime) {
+            doc.setTextColor(231, 76, 60); // Rojo para el peor tiempo
+        } else {
+            doc.setTextColor(44, 62, 80); // Color normal
+        }
+        
+        doc.text(`Paso ${index + 1}`, 30, yPosition);
+        doc.text(formatTimeForPDF(lap), pageWidth - 30, yPosition, { align: 'right' });
+        
+        yPosition += 10;
+        
+        // Verificar si necesita nueva página
+        if (yPosition > pageHeight - 30 && index < recordedLaps.length - 1) {
+            doc.addPage();
+            yPosition = 30;
+            
+            // Encabezado de la nueva página
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(128, 139, 150);
+            doc.text('REPORTE DE TIEMPOS - CRONÓMETRO (Continuación)', pageWidth / 2, 20, { align: 'center' });
+            
+            // Encabezado de tabla en nueva página
+            doc.setFontSize(14);
+            doc.setTextColor(44, 62, 80);
+            doc.text('PASO', 30, 35);
+            doc.text('TIEMPO', pageWidth - 30, 35, { align: 'right' });
+            doc.setDrawColor(100, 100, 100);
+            doc.line(20, 40, pageWidth - 20, 40);
+            
+            yPosition = 50;
+        }
+    });
+    
+    // Pie de página con estadísticas
+    doc.addPage();
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(44, 62, 80);
+    doc.text('ESTADÍSTICAS', pageWidth / 2, 30, { align: 'center' });
+    
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    let statsY = 60;
+    
+    doc.setTextColor(46, 204, 113); // Verde
+    doc.text('MEJOR TIEMPO:', 30, statsY);
+    doc.text(formatTimeForPDF(bestTime), pageWidth - 30, statsY, { align: 'right' });
+    
+    statsY += 15;
+    doc.setTextColor(231, 76, 60); // Rojo
+    doc.text('PEOR TIEMPO:', 30, statsY);
+    doc.text(formatTimeForPDF(worstTime), pageWidth - 30, statsY, { align: 'right' });
+    
+    statsY += 15;
+    doc.setTextColor(52, 152, 219); // Azul
+    doc.text('PROMEDIO:', 30, statsY);
+    doc.text(formatTimeForPDF(averageTime), pageWidth - 30, statsY, { align: 'right' });
+    
+    statsY += 15;
+    doc.setTextColor(155, 89, 182); // Púrpura
+    doc.text('TOTAL:', 30, statsY);
+    doc.text(formatTimeForPDF(totalTime), pageWidth - 30, statsY, { align: 'right' });
+    
+    statsY += 25;
+    doc.setTextColor(128, 139, 150); // Gris
+    doc.setFontSize(10);
+    doc.text(`Generado automáticamente por PaceTrack`, pageWidth / 2, statsY, { align: 'center' });
+    
+    // Descargar el PDF
+    const fileName = `tiempos_cronometro_${new Date().toISOString().split('T')[0]}.pdf`;
+    doc.save(fileName);
+    
+    showMessageBox('PDF descargado exitosamente.');
+}
+
+function createDownloadButton() {
+    // Verificar si el botón ya existe
+    if (document.getElementById('download-pdf-button')) {
+        return;
+    }
+    
+    const downloadButton = document.createElement('button');
+    downloadButton.id = 'download-pdf-button';
+    downloadButton.textContent = 'Descargar PDF';
+    downloadButton.style.backgroundImage = 'linear-gradient(90deg, #8e44ad, #9b59b6)';
+    
+    // Insertar el botón después del botón de reset
+    resetButton.parentNode.insertBefore(downloadButton, resetButton.nextSibling);
+    
+    // Event listener para el botón de descarga
+    downloadButton.addEventListener('click', downloadPDF);
 }
 
 // Configuración de cámara y calibración
@@ -312,8 +475,15 @@ messageBoxOkButton.addEventListener('click', () => {
 
 // Inicialización
 window.addEventListener('load', () => {
-    setupCamera();
-    loadLaps();
+    // Cargar la librería jsPDF desde CDN
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    script.onload = () => {
+        setupCamera();
+        loadLaps();
+        createDownloadButton();
+    };
+    document.head.appendChild(script);
 });
 
 window.addEventListener('resize', () => {
