@@ -70,8 +70,16 @@
         <section class="hero" id="inicio">
             <div class="hero-overlay">
                 <h2>PaceTrack Original</h2>
-                <p>Disfruta del servicio de Pacetrack desde tu dispositivo sin dependencias externas.</p>
+                <p>Disfruta del servicio de Pacetrack original cronometrando tus vueltas rapidas.</p>
                 <button id="navigateButton" aria-label="Ir al cronómetro PaceTrack">Iniciar PaceTrack Original</button>
+            </div>
+        </section>
+        
+        <section class="hero" id="inicio3">
+            <div class="hero-overlay">
+                <h2>PaceTrack Loop</h2>
+                <p>Mide tus vueltas consecutivas sin dependencia externa.</p>
+                <button id="navigateBut3" aria-label="Ir al Pacetrack Loop">Iniciar PaceTrack Loop</button>
             </div>
         </section>
         
@@ -218,12 +226,16 @@
 
         // Navegación a otras páginas
         document.getElementById('navigateButton').addEventListener('click', () => {
-            window.location.href = 'timer/timer.html';
+            window.location.href = '/timer/timer.html';
             showNotification('Redirigiendo al cronómetro...');
         });
         document.getElementById('navigateBut2').addEventListener('click', () => {
-            window.location.href = 'Construccion/Construccion.html';
+            window.location.href = '/Construccion/Construccion.html';
             showNotification('Redirigiendo a PaceTrack Server...');
+        });
+        document.getElementById('navigateBut3').addEventListener('click', () => {
+            window.location.href = '/timer_loop/timer_loop.html';
+            showNotification('Redirigiendo a PaceTrack Loop...');
         });
 
         // Cambio de tema claro/oscuro
