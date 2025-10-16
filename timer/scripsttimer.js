@@ -14,6 +14,13 @@ const hiddenCanvas = document.createElement('canvas');
 const hiddenCtx = hiddenCanvas.getContext('2d', { willReadFrequently: true });
 const overlayCtx = overlayCanvas.getContext('2d');
 
+// Nuevas variables para nombres de vueltas
+let lapNames = [];
+let useLapNames = false;
+let currentLapIndex = 0;
+let repeatNames = false;
+const MIN_LAP_TIME = 2000; // 2 segundos mínimo para contar como vuelta válida
+
 let timerState = 'stopped';
 let startTime = 0;
 let lastDisplayedTime = 0;
@@ -33,14 +40,40 @@ let recordedLaps = [];
 // Funciones de utilidad
 function saveLaps() {
     localStorage.setItem('recordedLaps', JSON.stringify(recordedLaps));
+    localStorage.setItem('lapNames', JSON.stringify(lapNames));
+    localStorage.setItem('useLapNames', useLapNames);
+    localStorage.setItem('currentLapIndex', currentLapIndex);
+    localStorage.setItem('repeatNames', repeatNames);
 }
 
 function loadLaps() {
     const storedLaps = localStorage.getItem('recordedLaps');
+    const storedLapNames = localStorage.getItem('lapNames');
+    const storedUseLapNames = localStorage.getItem('useLapNames');
+    const storedCurrentLapIndex = localStorage.getItem('currentLapIndex');
+    const storedRepeatNames = localStorage.getItem('repeatNames');
+    
     if (storedLaps) {
         recordedLaps = JSON.parse(storedLaps);
-        displayLaps();
     }
+    
+    if (storedLapNames) {
+        lapNames = JSON.parse(storedLapNames);
+    }
+    
+    if (storedUseLapNames) {
+        useLapNames = JSON.parse(storedUseLapNames);
+    }
+    
+    if (storedCurrentLapIndex) {
+        currentLapIndex = JSON.parse(storedCurrentLapIndex);
+    }
+    
+    if (storedRepeatNames) {
+        repeatNames = JSON.parse(storedRepeatNames);
+    }
+    
+    displayLaps();
 }
 
 function displayLaps() {
@@ -49,7 +82,7 @@ function displayLaps() {
         lapsContainer.style.display = 'block';
         recordedLaps.forEach((lap, index) => {
             const li = document.createElement('li');
-            li.innerHTML = `<span>P${index + 1}:</span> <span>${formatTime(lap)}</span>`;
+            li.innerHTML = `<span>${lap.name}:</span> <span>${formatTime(lap.time)}</span>`;
             lapsList.appendChild(li);
         });
         lapsList.scrollTop = lapsList.scrollHeight;
@@ -113,6 +146,77 @@ function vibrate(pattern) {
     }
 }
 
+// Funciones para gestión de nombres de vueltas
+function showSetupModal() {
+    document.getElementById('setup-modal').style.display = 'flex';
+    document.getElementById('app-container').style.display = 'none';
+}
+
+function setupWithNames() {
+    document.getElementById('setup-modal').style.display = 'none';
+    document.getElementById('names-modal').style.display = 'flex';
+    createNameInputs();
+}
+
+function setupWithoutNames() {
+    document.getElementById('setup-modal').style.display = 'none';
+    document.getElementById('app-container').style.display = 'flex';
+    useLapNames = false;
+    setupCamera();
+}
+
+function createNameInputs() {
+    const container = document.getElementById('names-input-container');
+    container.innerHTML = '';
+    
+    for (let i = 0; i < 10; i++) {
+        const inputGroup = document.createElement('div');
+        inputGroup.className = 'name-input-group';
+        
+        const label = document.createElement('label');
+        label.textContent = `Nombre de vuelta ${i + 1}:`;
+        
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = `Vuelta ${i + 1}`;
+        input.id = `lap-name-${i}`;
+        
+        inputGroup.appendChild(label);
+        inputGroup.appendChild(input);
+        container.appendChild(inputGroup);
+    }
+}
+
+function saveLapNames() {
+    lapNames = [];
+    for (let i = 0; i < 10; i++) {
+        const input = document.getElementById(`lap-name-${i}`);
+        const name = input.value.trim() || `Vuelta ${i + 1}`;
+        lapNames.push(name);
+    }
+    
+    useLapNames = true;
+    currentLapIndex = 0;
+    document.getElementById('names-modal').style.display = 'none';
+    document.getElementById('app-container').style.display = 'flex';
+    setupCamera();
+}
+
+function showRepeatModal() {
+    document.getElementById('repeat-modal').style.display = 'flex';
+}
+
+function handleRepeatNames() {
+    repeatNames = true;
+    currentLapIndex = 0;
+    document.getElementById('repeat-modal').style.display = 'none';
+}
+
+function handleContinueNumbers() {
+    useLapNames = false;
+    document.getElementById('repeat-modal').style.display = 'none';
+}
+
 // Función para descargar PDF
 function downloadPDF() {
     if (recordedLaps.length === 0) {
@@ -143,10 +247,11 @@ function downloadPDF() {
     doc.text(`Total de pasos: ${recordedLaps.length}`, pageWidth - 20, 50, { align: 'right' });
     
     // Calcular estadísticas
-    const totalTime = recordedLaps.reduce((sum, lap) => sum + lap, 0);
+    const lapTimes = recordedLaps.map(lap => lap.time);
+    const totalTime = lapTimes.reduce((sum, lapTime) => sum + lapTime, 0);
     const averageTime = totalTime / recordedLaps.length;
-    const bestTime = Math.min(...recordedLaps);
-    const worstTime = Math.max(...recordedLaps);
+    const bestTime = Math.min(...lapTimes);
+    const worstTime = Math.max(...lapTimes);
     
     doc.text(`Tiempo total: ${formatTimeForPDF(totalTime)}`, pageWidth - 20, 60, { align: 'right' });
     doc.text(`Promedio: ${formatTimeForPDF(averageTime)}`, pageWidth - 20, 70, { align: 'right' });
@@ -173,16 +278,16 @@ function downloadPDF() {
     
     recordedLaps.forEach((lap, index) => {
         // Cambiar color para el mejor y peor tiempo
-        if (lap === bestTime) {
+        if (lap.time === bestTime) {
             doc.setTextColor(46, 204, 113); // Verde para el mejor tiempo
-        } else if (lap === worstTime) {
+        } else if (lap.time === worstTime) {
             doc.setTextColor(231, 76, 60); // Rojo para el peor tiempo
         } else {
             doc.setTextColor(44, 62, 80); // Color normal
         }
         
-        doc.text(`Paso ${index + 1}`, 30, yPosition);
-        doc.text(formatTimeForPDF(lap), pageWidth - 30, yPosition, { align: 'right' });
+        doc.text(lap.name, 30, yPosition);
+        doc.text(formatTimeForPDF(lap.time), pageWidth - 30, yPosition, { align: 'right' });
         
         yPosition += 10;
         
@@ -391,17 +496,51 @@ function detectMovement() {
                         timerDisplay.textContent = '00:00.000';
                         lastDisplayedTime = 0;
                     } else if (timerState === 'running') {
-                        // Registrar tiempo de paso
+                        // Registrar tiempo de paso con validación de tiempo mínimo
                         const elapsed = currentTime - startTime;
-                        recordedLaps.push(elapsed);
-                        saveLaps();
-                        displayLaps();
                         
-                        // Reiniciar para el siguiente paso
-                        timerState = 'stopped';
-                        lastDisplayedTime = elapsed;
-                        statusMessage.textContent = `Paso ${recordedLaps.length} - ${formatTime(elapsed)} - Listo para el siguiente paso.`;
-                        timerDisplay.style.color = '#e2e8f0';
+                        if (elapsed >= MIN_LAP_TIME) {
+                            // Vuelta válida
+                            let lapName;
+                            
+                            if (useLapNames) {
+                                lapName = lapNames[currentLapIndex];
+                                currentLapIndex++;
+                                
+                                // Verificar si hemos usado todos los nombres
+                                if (currentLapIndex >= lapNames.length) {
+                                    if (repeatNames) {
+                                        currentLapIndex = 0;
+                                    } else {
+                                        showRepeatModal();
+                                    }
+                                }
+                            } else {
+                                lapName = `Paso ${recordedLaps.length + 1}`;
+                            }
+                            
+                            recordedLaps.push({
+                                time: elapsed,
+                                name: lapName
+                            });
+                            saveLaps();
+                            displayLaps();
+                            
+                            // Reiniciar para el siguiente paso
+                            timerState = 'stopped';
+                            lastDisplayedTime = elapsed;
+                            statusMessage.textContent = `${lapName} - ${formatTime(elapsed)} - Listo para el siguiente paso.`;
+                            timerDisplay.style.color = '#e2e8f0';
+                        } else {
+                            // Vuelta falsa (menos de 2 segundos)
+                            console.log('Vuelta falsa detectada: ', elapsed, 'ms');
+                            vibrate([100, 50, 100]); // Patrón de vibración diferente para falsa
+                            drawDetectionLine('red', true);
+                            statusMessage.textContent = 'Vuelta falsa detectada (menos de 2 segundos)';
+                            
+                            // No reiniciar el cronómetro, continuar contando
+                            // El cronómetro sigue corriendo
+                        }
                     }
                 }
             }
@@ -464,15 +603,36 @@ messageBoxOkButton.addEventListener('click', () => {
     messageBox.style.display = 'none';
 });
 
+// Event listeners para los nuevos botones
+document.getElementById('setup-with-names').addEventListener('click', setupWithNames);
+document.getElementById('setup-without-names').addEventListener('click', setupWithoutNames);
+document.getElementById('save-names').addEventListener('click', saveLapNames);
+document.getElementById('cancel-names').addEventListener('click', () => {
+    document.getElementById('names-modal').style.display = 'none';
+    showSetupModal();
+});
+document.getElementById('repeat-names').addEventListener('click', handleRepeatNames);
+document.getElementById('continue-numbers').addEventListener('click', handleContinueNumbers);
+
 // Inicialización
 window.addEventListener('load', () => {
     // Cargar la librería jsPDF desde CDN
     const script = document.createElement('script');
     script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
     script.onload = () => {
-        setupCamera();
-        loadLaps();
-        createDownloadButton();
+        // Verificar si hay configuración guardada
+        const storedUseLapNames = localStorage.getItem('useLapNames');
+        
+        if (storedUseLapNames !== null) {
+            // Ya hay configuración guardada, cargarla
+            loadLaps();
+            setupCamera();
+            createDownloadButton();
+            document.getElementById('app-container').style.display = 'flex';
+        } else {
+            // No hay configuración, mostrar modal de configuración
+            showSetupModal();
+        }
     };
     document.head.appendChild(script);
 });

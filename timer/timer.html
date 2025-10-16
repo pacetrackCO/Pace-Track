@@ -10,11 +10,48 @@
     <link rel="stylesheet" href="logo-splash/stylesintro.css">
 </head>
 <body>
-        <img id="logo" src="logo-splash/mi_logo.png" alt="Logo">
-
+    <img id="logo" src="logo-splash/mi_logo.png" alt="Logo">
     <script src="logo-splash/scriptsintro.js"></script>
-</div>
-    <div id="app-container">
+
+    <!-- Modal para configuración de nombres -->
+    <div id="setup-modal" class="modal">
+        <div class="modal-content">
+            <h2>Configuración de Vueltas</h2>
+            <p>¿Desea agregar nombres a las vueltas?</p>
+            <div class="modal-buttons">
+                <button id="setup-with-names">Sí, con nombres</button>
+                <button id="setup-without-names">No, solo números</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para ingresar nombres -->
+    <div id="names-modal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <h2>Ingresar Nombres de Vueltas</h2>
+            <div id="names-input-container">
+                <!-- Los inputs se generarán dinámicamente -->
+            </div>
+            <div class="modal-buttons">
+                <button id="save-names">Guardar Nombres</button>
+                <button id="cancel-names">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para configuración después de completar vueltas -->
+    <div id="repeat-modal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <h2>Configuración de Vueltas</h2>
+            <p>Se han completado todas las vueltas con nombre. ¿Qué desea hacer?</p>
+            <div class="modal-buttons">
+                <button id="repeat-names">Repetir nombres</button>
+                <button id="continue-numbers">Continuar con números</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-container" style="display:none;">
         <div id="video-container">
             <video id="video" autoplay playsinline></video>
             <canvas id="overlay-canvas"></canvas>
