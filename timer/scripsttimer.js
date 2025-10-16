@@ -14,12 +14,11 @@ const hiddenCanvas = document.createElement('canvas');
 const hiddenCtx = hiddenCanvas.getContext('2d', { willReadFrequently: true });
 const overlayCtx = overlayCanvas.getContext('2d');
 
-// Nuevas variables para nombres de vueltas
-let lapNames = [];
-let useLapNames = false;
-let currentLapIndex = 0;
-let repeatNames = false;
-const MIN_LAP_TIME = 2000; // 2 segundos mínimo para contar como vuelta válida
+// Nuevas variables para múltiples corredores
+let runners = [];
+let currentRunnerIndex = 0;
+let useRunnerNames = false;
+const MIN_LAP_TIME = 3500; // 3.5 segundos mínimo para contar como vuelta válida
 
 let timerState = 'stopped';
 let startTime = 0;
@@ -40,37 +39,31 @@ let recordedLaps = [];
 // Funciones de utilidad
 function saveLaps() {
     localStorage.setItem('recordedLaps', JSON.stringify(recordedLaps));
-    localStorage.setItem('lapNames', JSON.stringify(lapNames));
-    localStorage.setItem('useLapNames', useLapNames);
-    localStorage.setItem('currentLapIndex', currentLapIndex);
-    localStorage.setItem('repeatNames', repeatNames);
+    localStorage.setItem('runners', JSON.stringify(runners));
+    localStorage.setItem('currentRunnerIndex', currentRunnerIndex);
+    localStorage.setItem('useRunnerNames', useRunnerNames);
 }
 
 function loadLaps() {
     const storedLaps = localStorage.getItem('recordedLaps');
-    const storedLapNames = localStorage.getItem('lapNames');
-    const storedUseLapNames = localStorage.getItem('useLapNames');
-    const storedCurrentLapIndex = localStorage.getItem('currentLapIndex');
-    const storedRepeatNames = localStorage.getItem('repeatNames');
+    const storedRunners = localStorage.getItem('runners');
+    const storedCurrentRunnerIndex = localStorage.getItem('currentRunnerIndex');
+    const storedUseRunnerNames = localStorage.getItem('useRunnerNames');
     
     if (storedLaps) {
         recordedLaps = JSON.parse(storedLaps);
     }
     
-    if (storedLapNames) {
-        lapNames = JSON.parse(storedLapNames);
+    if (storedRunners) {
+        runners = JSON.parse(storedRunners);
     }
     
-    if (storedUseLapNames) {
-        useLapNames = JSON.parse(storedUseLapNames);
+    if (storedCurrentRunnerIndex) {
+        currentRunnerIndex = JSON.parse(storedCurrentRunnerIndex);
     }
     
-    if (storedCurrentLapIndex) {
-        currentLapIndex = JSON.parse(storedCurrentLapIndex);
-    }
-    
-    if (storedRepeatNames) {
-        repeatNames = JSON.parse(storedRepeatNames);
+    if (storedUseRunnerNames) {
+        useRunnerNames = JSON.parse(storedUseRunnerNames);
     }
     
     displayLaps();
@@ -82,7 +75,7 @@ function displayLaps() {
         lapsContainer.style.display = 'block';
         recordedLaps.forEach((lap, index) => {
             const li = document.createElement('li');
-            li.innerHTML = `<span>${lap.name}:</span> <span>${formatTime(lap.time)}</span>`;
+            li.innerHTML = `<span>${lap.runnerName}:</span> <span>${formatTime(lap.time)}</span>`;
             lapsList.appendChild(li);
         });
         lapsList.scrollTop = lapsList.scrollHeight;
@@ -146,7 +139,7 @@ function vibrate(pattern) {
     }
 }
 
-// Funciones para gestión de nombres de vueltas
+// Funciones para gestión de corredores
 function showSetupModal() {
     document.getElementById('setup-modal').style.display = 'flex';
     document.getElementById('app-container').style.display = 'none';
@@ -155,66 +148,123 @@ function showSetupModal() {
 function setupWithNames() {
     document.getElementById('setup-modal').style.display = 'none';
     document.getElementById('names-modal').style.display = 'flex';
-    createNameInputs();
+    createRunnerInputs();
 }
 
 function setupWithoutNames() {
     document.getElementById('setup-modal').style.display = 'none';
     document.getElementById('app-container').style.display = 'flex';
-    useLapNames = false;
+    useRunnerNames = false;
+    // Crear un corredor por defecto
+    runners = [{ id: 1, name: 'Corredor 1' }];
+    currentRunnerIndex = 0;
     setupCamera();
 }
 
-function createNameInputs() {
+function createRunnerInputs() {
     const container = document.getElementById('names-input-container');
     container.innerHTML = '';
     
-    for (let i = 0; i < 10; i++) {
-        const inputGroup = document.createElement('div');
-        inputGroup.className = 'name-input-group';
-        
-        const label = document.createElement('label');
-        label.textContent = `Nombre de vuelta ${i + 1}:`;
-        
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.placeholder = `Vuelta ${i + 1}`;
-        input.id = `lap-name-${i}`;
-        
-        inputGroup.appendChild(label);
-        inputGroup.appendChild(input);
-        container.appendChild(inputGroup);
-    }
+    // Solo un input para el primer corredor
+    const inputGroup = document.createElement('div');
+    inputGroup.className = 'name-input-group';
+    
+    const label = document.createElement('label');
+    label.textContent = 'Nombre del primer corredor:';
+    
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = 'Corredor 1';
+    input.id = 'runner-name-0';
+    
+    inputGroup.appendChild(label);
+    inputGroup.appendChild(input);
+    container.appendChild(inputGroup);
+    
+    // Botón para agregar más corredores
+    const addButton = document.createElement('button');
+    addButton.id = 'add-runner-button';
+    addButton.textContent = '+ Agregar otro corredor';
+    addButton.style.backgroundImage = 'linear-gradient(90deg, #3b82f6, #60a5fa)';
+    addButton.style.marginTop = '1rem';
+    addButton.addEventListener('click', addRunnerInput);
+    
+    container.appendChild(addButton);
 }
 
-function saveLapNames() {
-    lapNames = [];
-    for (let i = 0; i < 10; i++) {
-        const input = document.getElementById(`lap-name-${i}`);
-        const name = input.value.trim() || `Vuelta ${i + 1}`;
-        lapNames.push(name);
-    }
+function addRunnerInput() {
+    const container = document.getElementById('names-input-container');
+    const currentCount = document.querySelectorAll('.name-input-group').length;
     
-    useLapNames = true;
-    currentLapIndex = 0;
+    const inputGroup = document.createElement('div');
+    inputGroup.className = 'name-input-group';
+    
+    const label = document.createElement('label');
+    label.textContent = `Nombre del corredor ${currentCount + 1}:`;
+    
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = `Corredor ${currentCount + 1}`;
+    input.id = `runner-name-${currentCount}`;
+    
+    inputGroup.appendChild(label);
+    inputGroup.appendChild(input);
+    
+    // Insertar antes del botón de agregar
+    const addButton = document.getElementById('add-runner-button');
+    container.insertBefore(inputGroup, addButton);
+}
+
+function saveRunnerNames() {
+    runners = [];
+    const inputs = document.querySelectorAll('#names-input-container input');
+    
+    inputs.forEach((input, index) => {
+        const name = input.value.trim() || `Corredor ${index + 1}`;
+        runners.push({ id: index + 1, name: name });
+    });
+    
+    useRunnerNames = true;
+    currentRunnerIndex = 0;
     document.getElementById('names-modal').style.display = 'none';
     document.getElementById('app-container').style.display = 'flex';
     setupCamera();
 }
 
-function showRepeatModal() {
-    document.getElementById('repeat-modal').style.display = 'flex';
+function addNewRunner() {
+    const newRunnerNumber = runners.length + 1;
+    const newRunner = { 
+        id: newRunnerNumber, 
+        name: `Corredor ${newRunnerNumber}` 
+    };
+    runners.push(newRunner);
+    saveLaps();
+    
+    showMessageBox(`Nuevo corredor agregado: ${newRunner.name}`);
+    console.log(`Corredor agregado: ${newRunner.name}`);
 }
 
-function handleRepeatNames() {
-    repeatNames = true;
-    currentLapIndex = 0;
-    document.getElementById('repeat-modal').style.display = 'none';
-}
-
-function handleContinueNumbers() {
-    useLapNames = false;
-    document.getElementById('repeat-modal').style.display = 'none';
+function createAddRunnerButton() {
+    // Verificar si el botón ya existe
+    if (document.getElementById('add-runner-button-main')) {
+        return;
+    }
+    
+    const addRunnerButton = document.createElement('button');
+    addRunnerButton.id = 'add-runner-button-main';
+    addRunnerButton.textContent = '+ Agregar Corredor';
+    addRunnerButton.style.backgroundImage = 'linear-gradient(90deg, #10b981, #34d399)';
+    
+    // Insertar el botón después del botón de descarga PDF
+    const downloadButton = document.getElementById('download-pdf-button');
+    if (downloadButton) {
+        downloadButton.parentNode.insertBefore(addRunnerButton, downloadButton.nextSibling);
+    } else {
+        resetButton.parentNode.insertBefore(addRunnerButton, resetButton.nextSibling);
+    }
+    
+    // Event listener para el botón de agregar corredor
+    addRunnerButton.addEventListener('click', addNewRunner);
 }
 
 // Función para descargar PDF
@@ -244,17 +294,21 @@ function downloadPDF() {
     doc.setTextColor(128, 139, 150);
     doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 20, 50);
     doc.text(`Hora: ${new Date().toLocaleTimeString()}`, 20, 60);
-    doc.text(`Total de pasos: ${recordedLaps.length}`, pageWidth - 20, 50, { align: 'right' });
+    doc.text(`Total de corredores: ${new Set(recordedLaps.map(lap => lap.runnerName)).size}`, pageWidth - 20, 50, { align: 'right' });
+    doc.text(`Total de tiempos: ${recordedLaps.length}`, pageWidth - 20, 60, { align: 'right' });
     
-    // Calcular estadísticas
-    const lapTimes = recordedLaps.map(lap => lap.time);
-    const totalTime = lapTimes.reduce((sum, lapTime) => sum + lapTime, 0);
-    const averageTime = totalTime / recordedLaps.length;
-    const bestTime = Math.min(...lapTimes);
-    const worstTime = Math.max(...lapTimes);
-    
-    doc.text(`Tiempo total: ${formatTimeForPDF(totalTime)}`, pageWidth - 20, 60, { align: 'right' });
-    doc.text(`Promedio: ${formatTimeForPDF(averageTime)}`, pageWidth - 20, 70, { align: 'right' });
+    // Calcular estadísticas por corredor
+    const runnersStats = {};
+    recordedLaps.forEach(lap => {
+        if (!runnersStats[lap.runnerName]) {
+            runnersStats[lap.runnerName] = {
+                times: [],
+                count: 0
+            };
+        }
+        runnersStats[lap.runnerName].times.push(lap.time);
+        runnersStats[lap.runnerName].count++;
+    });
     
     // Línea separadora
     doc.setDrawColor(200, 200, 200);
@@ -264,7 +318,7 @@ function downloadPDF() {
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(44, 62, 80);
-    doc.text('PASO', 30, 95);
+    doc.text('CORREDOR', 30, 95);
     doc.text('TIEMPO', pageWidth - 30, 95, { align: 'right' });
     
     // Línea bajo el encabezado
@@ -277,16 +331,9 @@ function downloadPDF() {
     let yPosition = 115;
     
     recordedLaps.forEach((lap, index) => {
-        // Cambiar color para el mejor y peor tiempo
-        if (lap.time === bestTime) {
-            doc.setTextColor(46, 204, 113); // Verde para el mejor tiempo
-        } else if (lap.time === worstTime) {
-            doc.setTextColor(231, 76, 60); // Rojo para el peor tiempo
-        } else {
-            doc.setTextColor(44, 62, 80); // Color normal
-        }
+        doc.setTextColor(44, 62, 80); // Color normal
         
-        doc.text(lap.name, 30, yPosition);
+        doc.text(lap.runnerName, 30, yPosition);
         doc.text(formatTimeForPDF(lap.time), pageWidth - 30, yPosition, { align: 'right' });
         
         yPosition += 10;
@@ -305,7 +352,7 @@ function downloadPDF() {
             // Encabezado de tabla en nueva página
             doc.setFontSize(14);
             doc.setTextColor(44, 62, 80);
-            doc.text('PASO', 30, 35);
+            doc.text('CORREDOR', 30, 35);
             doc.text('TIEMPO', pageWidth - 30, 35, { align: 'right' });
             doc.setDrawColor(100, 100, 100);
             doc.line(20, 40, pageWidth - 20, 40);
@@ -314,40 +361,37 @@ function downloadPDF() {
         }
     });
     
-    // Pie de página con estadísticas
+    // Estadísticas por corredor
     doc.addPage();
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(44, 62, 80);
-    doc.text('ESTADÍSTICAS', pageWidth / 2, 30, { align: 'center' });
+    doc.text('ESTADÍSTICAS POR CORREDOR', pageWidth / 2, 30, { align: 'center' });
     
     doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
-    let statsY = 60;
+    let statsY = 50;
     
-    doc.setTextColor(46, 204, 113); // Verde
-    doc.text('MEJOR TIEMPO:', 30, statsY);
-    doc.text(formatTimeForPDF(bestTime), pageWidth - 30, statsY, { align: 'right' });
-    
-    statsY += 15;
-    doc.setTextColor(231, 76, 60); // Rojo
-    doc.text('PEOR TIEMPO:', 30, statsY);
-    doc.text(formatTimeForPDF(worstTime), pageWidth - 30, statsY, { align: 'right' });
-    
-    statsY += 15;
-    doc.setTextColor(52, 152, 219); // Azul
-    doc.text('PROMEDIO:', 30, statsY);
-    doc.text(formatTimeForPDF(averageTime), pageWidth - 30, statsY, { align: 'right' });
-    
-    statsY += 15;
-    doc.setTextColor(155, 89, 182); // Púrpura
-    doc.text('TOTAL:', 30, statsY);
-    doc.text(formatTimeForPDF(totalTime), pageWidth - 30, statsY, { align: 'right' });
-    
-    statsY += 25;
-    doc.setTextColor(128, 139, 150); // Gris
-    doc.setFontSize(10);
-    doc.text(`Generado automáticamente por Cronómetro de Paso para Atletas`, pageWidth / 2, statsY, { align: 'center' });
+    Object.keys(runnersStats).forEach(runnerName => {
+        const stats = runnersStats[runnerName];
+        const bestTime = Math.min(...stats.times);
+        const averageTime = stats.times.reduce((sum, time) => sum + time, 0) / stats.times.length;
+        
+        doc.setTextColor(52, 152, 219); // Azul
+        doc.text(`${runnerName}:`, 20, statsY);
+        
+        statsY += 10;
+        doc.setTextColor(128, 139, 150); // Gris
+        doc.text(`Mejor tiempo: ${formatTimeForPDF(bestTime)}`, 30, statsY);
+        
+        statsY += 8;
+        doc.text(`Promedio: ${formatTimeForPDF(averageTime)}`, 30, statsY);
+        
+        statsY += 8;
+        doc.text(`Total de vueltas: ${stats.count}`, 30, statsY);
+        
+        statsY += 15;
+    });
     
     // Descargar el PDF
     const fileName = `tiempos_cronometro_${new Date().toISOString().split('T')[0]}.pdf`;
@@ -369,9 +413,6 @@ function createDownloadButton() {
     
     // Insertar el botón después del botón de reset
     resetButton.parentNode.insertBefore(downloadButton, resetButton.nextSibling);
-    
-    // Event listener para el botón de descarga
-    downloadButton.addEventListener('click', downloadPDF);
 }
 
 // Configuración de cámara y calibración
@@ -415,16 +456,16 @@ function startCalibration() {
             validSamples.reduce((sum, val) => sum + val, 0) / validSamples.length : 0;
         
         detectionThreshold = Math.max(parseInt(sensitivitySlider.min), averageNoise * 2 || 100);
-        detectionThreshold = Math.min(parseInt(sensitivitySlider.max), detectionThreshold + 5); // Añadir 10 al umbral
+        detectionThreshold = Math.min(parseInt(sensitivitySlider.max), detectionThreshold + 5);
         sensitivitySlider.value = detectionThreshold;
         
         isCalibrating = false;
-        statusMessage.textContent = 'Calibración completa. ¡Listo para el primer paso!';
+        statusMessage.textContent = 'Calibración completa. ¡Listo para el primer corredor!';
         timerDisplay.textContent = '00:00.000';
         lastDisplayedTime = 0;
         timerDisplay.style.color = '#e2e8f0';
         
-        showMessageBox(`Calibración completa. Umbral de detección inicial: ${detectionThreshold.toFixed(0)}. Ahora, el primer paso iniciará el cronómetro.`);
+        showMessageBox(`Calibración completa. Umbral de detección inicial: ${detectionThreshold.toFixed(0)}. Ahora, el primer corredor iniciará el cronómetro.`);
         console.log(`Calibración: Ruido promedio = ${averageNoise.toFixed(2)}. Umbral ajustado a: ${detectionThreshold.toFixed(0)}.`);
     }, calibrationDuration);
 }
@@ -501,42 +542,33 @@ function detectMovement() {
                         
                         if (elapsed >= MIN_LAP_TIME) {
                             // Vuelta válida
-                            let lapName;
-                            
-                            if (useLapNames) {
-                                lapName = lapNames[currentLapIndex];
-                                currentLapIndex++;
-                                
-                                // Verificar si hemos usado todos los nombres
-                                if (currentLapIndex >= lapNames.length) {
-                                    if (repeatNames) {
-                                        currentLapIndex = 0;
-                                    } else {
-                                        showRepeatModal();
-                                    }
-                                }
-                            } else {
-                                lapName = `Paso ${recordedLaps.length + 1}`;
-                            }
+                            const currentRunner = runners[currentRunnerIndex];
                             
                             recordedLaps.push({
                                 time: elapsed,
-                                name: lapName
+                                runnerName: currentRunner.name,
+                                runnerId: currentRunner.id
                             });
+                            
                             saveLaps();
                             displayLaps();
                             
-                            // Reiniciar para el siguiente paso
+                            // Avanzar al siguiente corredor
+                            currentRunnerIndex = (currentRunnerIndex + 1) % runners.length;
+                            
+                            // Reiniciar para el siguiente corredor
                             timerState = 'stopped';
                             lastDisplayedTime = elapsed;
-                            statusMessage.textContent = `${lapName} - ${formatTime(elapsed)} - Listo para el siguiente paso.`;
+                            
+                            const nextRunner = runners[currentRunnerIndex];
+                            statusMessage.textContent = `${currentRunner.name} - ${formatTime(elapsed)} - Listo para: ${nextRunner.name}`;
                             timerDisplay.style.color = '#e2e8f0';
                         } else {
-                            // Vuelta falsa (menos de 2 segundos)
+                            // Vuelta falsa (menos del tiempo mínimo)
                             console.log('Vuelta falsa detectada: ', elapsed, 'ms');
                             vibrate([100, 50, 100]); // Patrón de vibración diferente para falsa
                             drawDetectionLine('red', true);
-                            statusMessage.textContent = 'Vuelta falsa detectada (menos de 2 segundos)';
+                            statusMessage.textContent = `Vuelta falsa detectada (menos de ${MIN_LAP_TIME/1000} segundos)`;
                             
                             // No reiniciar el cronómetro, continuar contando
                             // El cronómetro sigue corriendo
@@ -606,13 +638,11 @@ messageBoxOkButton.addEventListener('click', () => {
 // Event listeners para los nuevos botones
 document.getElementById('setup-with-names').addEventListener('click', setupWithNames);
 document.getElementById('setup-without-names').addEventListener('click', setupWithoutNames);
-document.getElementById('save-names').addEventListener('click', saveLapNames);
+document.getElementById('save-names').addEventListener('click', saveRunnerNames);
 document.getElementById('cancel-names').addEventListener('click', () => {
     document.getElementById('names-modal').style.display = 'none';
     showSetupModal();
 });
-document.getElementById('repeat-names').addEventListener('click', handleRepeatNames);
-document.getElementById('continue-numbers').addEventListener('click', handleContinueNumbers);
 
 // Inicialización
 window.addEventListener('load', () => {
@@ -621,13 +651,14 @@ window.addEventListener('load', () => {
     script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
     script.onload = () => {
         // Verificar si hay configuración guardada
-        const storedUseLapNames = localStorage.getItem('useLapNames');
+        const storedUseRunnerNames = localStorage.getItem('useRunnerNames');
         
-        if (storedUseLapNames !== null) {
+        if (storedUseRunnerNames !== null) {
             // Ya hay configuración guardada, cargarla
             loadLaps();
             setupCamera();
             createDownloadButton();
+            createAddRunnerButton();
             document.getElementById('app-container').style.display = 'flex';
         } else {
             // No hay configuración, mostrar modal de configuración
