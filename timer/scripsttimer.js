@@ -158,7 +158,10 @@ function setupWithoutNames() {
     // Crear un corredor por defecto
     runners = [{ id: 1, name: 'Corredor 1' }];
     currentRunnerIndex = 0;
+    saveLaps();
     setupCamera();
+    createDownloadButton();
+    createAddRunnerButton();
 }
 
 function createRunnerInputs() {
@@ -228,7 +231,10 @@ function saveRunnerNames() {
     currentRunnerIndex = 0;
     document.getElementById('names-modal').style.display = 'none';
     document.getElementById('app-container').style.display = 'flex';
+    saveLaps();
     setupCamera();
+    createDownloadButton();
+    createAddRunnerButton();
 }
 
 function addNewRunner() {
@@ -413,6 +419,9 @@ function createDownloadButton() {
     
     // Insertar el botón después del botón de reset
     resetButton.parentNode.insertBefore(downloadButton, resetButton.nextSibling);
+    
+    // Agregar event listener para descargar PDF
+    downloadButton.addEventListener('click', downloadPDF);
 }
 
 // Configuración de cámara y calibración
