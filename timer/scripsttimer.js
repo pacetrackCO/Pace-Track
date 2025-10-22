@@ -18,7 +18,8 @@ const overlayCtx = overlayCanvas.getContext('2d');
 let runners = [];
 let currentRunnerIndex = 0;
 let useRunnerNames = false;
-const MIN_LAP_TIME = 3500; // 3.5 segundos mínimo para contar como vuelta válida
+const MIN_LAP_TIME = 3500; // 3 segundos mínimo para contar como vuelta válida
+const MIN_STOP_TIME = 1000; // 1 segundo mínimo para detener sin guardar
 
 let timerState = 'stopped';
 let startTime = 0;
@@ -473,9 +474,6 @@ function startCalibration() {
         timerDisplay.textContent = '00:00.000';
         lastDisplayedTime = 0;
         timerDisplay.style.color = '#e2e8f0';
-        
-        showMessageBox(`Calibración completa. Umbral de detección inicial: ${detectionThreshold.toFixed(0)}. Ahora, el primer corredor iniciará el cronómetro.`);
-        console.log(`Calibración: Ruido promedio = ${averageNoise.toFixed(2)}. Umbral ajustado a: ${detectionThreshold.toFixed(0)}.`);
     }, calibrationDuration);
 }
 
@@ -546,11 +544,24 @@ function detectMovement() {
                         timerDisplay.textContent = '00:00.000';
                         lastDisplayedTime = 0;
                     } else if (timerState === 'running') {
-                        // Registrar tiempo de paso con validación de tiempo mínimo
+                        // Registrar tiempo de paso con validación
                         const elapsed = currentTime - startTime;
                         
-                        if (elapsed >= MIN_LAP_TIME) {
-                            // Vuelta válida
+                        if (elapsed < MIN_STOP_TIME) {
+                            // Menos de 1 segundo: detener el cronómetro, no guardar
+                            timerState = 'stopped';
+                            lastDisplayedTime = elapsed;
+                            statusMessage.textContent = `Vuelta cancelada: demasiado rápida (${formatTime(elapsed)})`;
+                            timerDisplay.style.color = '#e2e8f0';
+                            vibrate([100, 50, 100]); // Vibración para detección cancelada
+                            drawDetectionLine('red', true);
+                        } else if (elapsed < MIN_LAP_TIME) {
+                            // Entre 1 y 3 segundos: ignorar detección, seguir contando
+                            statusMessage.textContent = `Detección ignorada: tiempo intermedio (${formatTime(elapsed)})`;
+                            vibrate([50, 50, 50]); // Vibración suave para detección ignorada
+                            drawDetectionLine('yellow', true);
+                        } else {
+                            // Más de 3 segundos: vuelta válida
                             const currentRunner = runners[currentRunnerIndex];
                             
                             recordedLaps.push({
@@ -572,15 +583,6 @@ function detectMovement() {
                             const nextRunner = runners[currentRunnerIndex];
                             statusMessage.textContent = `${currentRunner.name} - ${formatTime(elapsed)} - Listo para: ${nextRunner.name}`;
                             timerDisplay.style.color = '#e2e8f0';
-                        } else {
-                            // Vuelta falsa (menos del tiempo mínimo)
-                            console.log('Vuelta falsa detectada: ', elapsed, 'ms');
-                            vibrate([100, 50, 100]); // Patrón de vibración diferente para falsa
-                            drawDetectionLine('red', true);
-                            statusMessage.textContent = `Vuelta falsa detectada (menos de ${MIN_LAP_TIME/1000} segundos)`;
-                            
-                            // No reiniciar el cronómetro, continuar contando
-                            // El cronómetro sigue corriendo
                         }
                     }
                 }
