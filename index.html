@@ -2,270 +2,114 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
-    <!-- TÍTULO Y DESCRIPCIÓN MEJORADOS -->
-    <title>PaceTrack - Cronómetro Online para Pumptrack, Velódromo y Atletismo</title>
-    <meta name="description" content="Cronómetro online profesional para pumptrack, velódromo, atletismo y más. Mide tiempos con precisión de milisegundos. Gratuito y fácil de usar.">
-    
-    <!-- PALABRAS CLAVE ESTRATÉGICAS -->
-    <meta name="keywords" content="cronómetro pumptrack, medir tiempos deportes, cronómetro velódromo, cronometraje atletismo, pace track, pacetrack, cronómetro online, deportes de velocidad, BMX cronómetro, ciclismo pista">
-    
-    <!-- META TAGS ESENCIALES -->
-    <meta name="author" content="PaceTrack">
-    <meta name="robots" content="index, follow">
-    
-    <!-- OPEN GRAPH MEJORADO -->
-    <meta property="og:title" content="PaceTrack - Cronómetro Profesional para Deportes">
-    <meta property="og:description" content="Cronómetro online para pumptrack, velódromo y atletismo con precisión de milisegundos">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PaceTrack - Cronómetro Online para Pumptrack</title>
+    <meta name="description" content="Cronómetro online profesional para pumptrack, velódromo y atletismo. Gratis y fácil.">
+    <meta name="keywords" content="cronómetro pumptrack, velódromo, atletismo, pacetrack">
+    <meta property="og:title" content="PaceTrack">
+    <meta property="og:description" content="Cronómetro online con precisión de milisegundos">
     <meta property="og:image" content="https://pacetrack.es/images/mi_logo.png">
     <meta property="og:url" content="https://pacetrack.es">
-    <meta property="og:type" content="website">
-    <meta name="twitter:card" content="summary_large_image">
-    
-    <!-- SCHEMA.ORG SIMPLE PERO EFECTIVO -->
-    <script type="application/ld+json">
-    {
-        "@context": "https://schema.org",
-        "@type": "WebApplication",
-        "name": "PaceTrack",
-        "description": "Cronómetro online para deportes de cronometraje",
-        "url": "https://pacetrack.es",
-        "applicationCategory": "SportsApplication"
-    }
-    </script>
-    
-    <!-- ENLACES IMPORTANTES -->
     <link rel="canonical" href="https://pacetrack.es">
-    <link rel="icon" type="image/x-icon" href="images/favicon.ico">
-    
+    <link rel="icon" href="images/favicon.ico">
     <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    <script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Orbitron&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <script type="application/ld+json">
+    {"@context":"https://schema.org","@type":"WebApplication","name":"PaceTrack","url":"https://pacetrack.es"}
+    </script>
 </head>
 <body>
-    <a href="#main-content" class="skip-link">Ir al contenido principal</a>
-    <header>
-        <button id="themeToggle" aria-label="Cambiar tema">🌙</button>
-        <div class="google-translate-container" id="google_translate_element"></div>
-        <a href="index.html" aria-label="Volver al inicio">
-            <img src="images/mi_logo.png" alt="Logo PaceTrack - Cronómetro profesional para pumptrack y deportes" class="logo">
-        </a>
-        <!-- H1 MEJORADO -->
-        <h1>PaceTrack - Cronómetro Profesional Online</h1>
-        <p class="subtitle">Tu cronómetro automático desde navegador con precisión de milisegundos</p>
-        <nav>
-            <ul class="nav-menu">
-                <li><a href="#inicio" class="nav-link">Inicio</a></li>
-                <li><a href="#caracteristicas" class="nav-link">Características</a></li>
-                <li><a href="#novedades" class="nav-link">Novedades</a></li>
-                <li><a href="#contacto" class="nav-link">Contacto</a></li>
-                <li><a href="timer/timer.html" class="nav-link">Cronómetro</a></li>
-            </ul>
-        </nav>
-    </header>
-    
-    <main id="main-content">
-        <!-- HERO SECTION CON TEXTO MEJORADO -->
-        <section class="hero" id="inicio">
-            <div class="hero-overlay">
-                <h2>PaceTrack Original</h2>
-                <p>Disfruta del servicio de Pacetrack original cronometrando tus vueltas rapidas.</p>
-                <button id="navigateButton" aria-label="Ir al cronómetro PaceTrack">Iniciar PaceTrack Original</button>
-            </div>
-        </section>
-        
-        <section class="hero" id="inicio3">
-            <div class="hero-overlay">
-                <h2>PaceTrack Loop</h2>
-                <p>Mide tus vueltas consecutivas sin dependencia externa.</p>
-                <button id="navigateBut3" aria-label="Ir al Pacetrack Loop">Iniciar PaceTrack Loop</button>
-            </div>
-        </section>
-        
-        <section class="hero" id="inicio2">
-            <div class="hero-overlay">
-                <h2>Pacetrack Server</h2>
-                <p>Sincroniza los tiempos registrados automáticamente con tu computadora para análisis avanzado.</p>
-                <button id="navigateBut2" aria-label="Ir a PaceTrack Server">Iniciar PaceTrack Server</button>
-            </div>
-        </section>
-        
-        <section class="features" id="caracteristicas">
-            <h2>¿Por qué elegir el Cronómetro PaceTrack?</h2>
-            <div class="feature-grid">
-                <div class="feature-item">
-                    <span class="icon">⏱️</span>
-                    <h3>Cronometraje Preciso para Pumptrack</h3>
-                    <p>Precisión de milisegundos, perfecto para deportes competitivos como pumptrack y velódromo.</p>
-                </div>
-                <div class="feature-item">
-                    <span class="icon">🚀</span>
-                    <h3>Fácil de Usar</h3>
-                    <p>Interfaz intuitiva para configuración y cronometraje rápidos en competiciones.</p>
-                </div>
-                <div class="feature-item">
-                    <span class="icon">📱</span>
-                    <h3>Compatible con Móviles</h3>
-                    <p>Cronometra carreras de pumptrack y atletismo en cualquier dispositivo móvil.</p>
-                </div>
-            </div>
-        </section>
-        
-        <!-- SECCIÓN NUEVA: INFORMACIÓN ADICIONAL SEO -->
-        <section class="info-section">
-            <h2>Cronómetro Especializado para Deportes de Velocidad</h2>
-            <p>PaceTrack es la herramienta ideal para atletas, entrenadores y entusiastas que necesitan mediciones precisas de tiempo en deportes de circuito cerrado.</p>
-            <div class="info-grid">
-                <div class="info-item">
-                    <h3>Pumptrack</h3>
-                    <p>Mide vueltas y tiempos en circuitos de pumptrack con máxima precisión</p>
-                </div>
-                <div class="info-item">
-                    <h3>Velódromo</h3>
-                    <p>Cronometraje profesional para ciclismo en pista y competiciones</p>
-                </div>
-                <div class="info-item">
-                    <h3>Atletismo</h3>
-                    <p>Medición exacta para carreras y entrenamientos de atletismo</p>
-                </div>
-            </div>
-        </section>
-        
-        <!-- NUEVA SECCIÓN: NOVEDADES -->
-        <section class="news" id="novedades">
-            <h2>Novedades de PaceTrack</h2>
-            <div class="news-grid">
-                <div class="news-item">
-                    <h3>Nueva Modalidad "PaceTrack Server"</h3>
-                    <p><strong>29/9/2025</strong> Trabajamos en un nuevo formato para mejorar tu experiencia. .</p>
-                </div>
-                <div class="news-item">
-                    <h3>Compatibilidad con Dispositivos Moviles</h3>
-                    <p><strong>15/09/2025</strong> - Integramos soporte para SmartPhone.</p>
-                </div>
-                <div class="news-item">
-                    <h3>PaceTrack</h3>
-                    <p><strong>15/09/2025</strong> - PaceTrack sale a internet con ideas revolucionarias.</p>
-                </div>
-            </div>
-        </section>
-        
-        <section class="contact" id="contacto">
-            <h2>Contáctanos</h2>
-            <p>¿Tienes preguntas sobre nuestro cronómetro para pumptrack o otros deportes? ¡Escríbenos!</p>
-            <form id="contactForm" 
-                  name="contact" 
-                  method="POST" 
-                  data-netlify="true"
-                  netlify-honeypot="bot-field">
-                <input type="hidden" name="form-name" value="contact">
-                <p class="hidden">
-                    <label>No llenes esto: <input name="bot-field"></label>
-                </p>
-                
-                <label for="name">Nombre:</label>
-                <input type="text" id="name" name="name" required>
-                
-                <label for="email">Correo electrónico:</label>
-                <input type="email" id="email" name="email" required>
-                
-                <label for="message">Mensaje:</label>
-                <textarea id="message" name="message" required></textarea>
-                
-                <button type="submit">Enviar Mensaje</button>
-            </form>
-        </section>
-    </main>
-    
-    <footer>
-        <p>&copy; 2025 PaceTrack - Cronómetro Profesional para Deportes</p>
-        <div class="social-links">
-            <a href="https://instagram.com/aka.alberto" aria-label="Síguenos en Instagram"><i class="fab fa-instagram"></i></a>
+<a href="#main" class="skip-link">Ir al contenido</a>
+<canvas id="particles"></canvas>
+
+<button id="themeToggle" aria-label="Tema oscuro">MOON</button>
+<div id="google_translate_element" class="google-translate"></div>
+
+<header>
+    <img src="images/mi_logo.png" alt="PaceTrack" class="logo">
+    <h1>PaceTrack</h1>
+    <p class="tagline">Cronómetro profesional · Gratuito · Milisegundos</p>
+</header>
+
+<main id="main">
+    <!-- HERO -->
+    <div class="heroes" id="inicio">
+        <div class="card">
+            <h2>PaceTrack Original</h2>
+            <p>El clásico. Arranca, para y guarda tus vueltas.</p>
+            <button class="btn" data-url="/timer/timer.html">INICIAR</button>
         </div>
-    </footer>
-    
-    <div id="notification" class="notification hidden" aria-live="assertive"></div>
-    
-    <!-- SCRIPTS ORIGINALES CONSERVADOS -->
-    <script>
-        // Inicialización de Google Translate
-        function googleTranslateElementInit() {
-            new google.translate.TranslateElement({
-                pageLanguage: 'es',
-                autoDisplay: false
-            }, 'google_translate_element');
-            const userLang = navigator.language || navigator.userLanguage || 'es';
-            const targetLang = userLang.split('-')[0];
-            if (targetLang !== 'es') {
-                const translate = new google.translate.TranslateElement();
-                translate.showBanner = false;
-                const translateFrame = document.createElement('iframe');
-                translateFrame.style.display = 'none';
-                document.body.appendChild(translateFrame);
-                translate.translatePage('es', targetLang, translateFrame.contentWindow);
-            }
-        }
+        <div class="card">
+            <h2>PaceTrack Loop</h2>
+            <p>Vueltas automáticas sin tocar el móvil.</p>
+            <button class="btn" data-url="/timer_loop/timer_loop.html">LOOP</button>
+        </div>
+        <div class="card">
+            <h2>PaceTrack Server</h2>
+            <p>Exporta a PDF y sincroniza con PC.</p>
+            <button class="btn" data-url="Construccion/Construccion.html">SERVER</button>
+        </div>
+    </div>
 
-        // Navegación suave para enlaces
-        document.querySelectorAll('.nav-link').forEach(link => {
-            link.addEventListener('click', (e) => {
-                const href = link.getAttribute('href');
-                if (href && href.startsWith('#')) {
-                    e.preventDefault();
-                    const target = document.querySelector(href);
-                    if (target) {
-                        window.scrollTo({
-                            top: target.offsetTop,
-                            behavior: 'smooth'
-                        });
-                    }
-                }
-            });
-        });
+    <!-- CARACTERÍSTICAS -->
+    <section id="caracteristicas">
+        <h2>¿Por qué PaceTrack?</h2>
+        <div class="grid">
+            <div class="item"><span class="icon">⏱️</span><h3>Precisión milisegundos</h3><p>Ideal para pumptrack y velódromo.</p></div>
+            <div class="item"><span class="icon">🚀</span><h3>Fácil de usar</h3><p>Una pulsación y listo.</p></div>
+            <div class="item"><span class="icon">📱</span><h3>100 % móvil</h3><p>Funciona en cualquier smartphone.</p></div>
+        </div>
+    </section>
 
-        // Navegación a otras páginas
-        document.getElementById('navigateButton').addEventListener('click', () => {
-            window.location.href = '/timer/timer.html';
-            showNotification('Redirigiendo al cronómetro...');
-        });
-        document.getElementById('navigateBut2').addEventListener('click', () => {
-            window.location.href = '/Construccion/Construccion.html';
-            showNotification('Redirigiendo a PaceTrack Server...');
-        });
-        document.getElementById('navigateBut3').addEventListener('click', () => {
-            window.location.href = '/timer_loop/timer_loop.html';
-            showNotification('Redirigiendo a PaceTrack Loop...');
-        });
+    <!-- DEPORTES -->
+    <section class="info">
+        <h2>Deportes de velocidad</h2>
+        <p>La herramienta favorita de riders y entrenadores.</p>
+        <div class="grid">
+            <div class="item"><h3>Pumptrack</h3><p>Mide cada pump y mejora tu flow.</p></div>
+            <div class="item"><h3>Velódromo</h3><p>Cronometraje profesional en pista.</p></div>
+            <div class="item"><h3>Atletismo</h3><p>Carreras, saltos y lanzamientos.</p></div>
+        </div>
+    </section>
 
-        // Cambio de tema claro/oscuro
-        document.getElementById('themeToggle').addEventListener('click', () => {
-            document.body.dataset.theme = document.body.dataset.theme === 'dark' ? 'light' : 'dark';
-            showNotification('Tema cambiado a ' + (document.body.dataset.theme === 'dark' ? 'oscuro' : 'claro'));
-        });
+    <!-- NOVEDADES -->
+    <section class="news" id="novedades">
+        <h2>Novedades</h2>
+        <div class="grid">
+            <div class="item"><h3>Nuevo temaa</h3><p><strong>08/11/2025</strong> Nuevo diseño🔥.</p></div>            
+            <div class="item"><h3>PDF Export</h3><p><strong>14/10/2025</strong> Descarga tus tiempos.</p></div>
+            <div class="item"><h3>PaceTrack Server</h3><p><strong>29/9/2025</strong> Sincronización con PC.</p></div>
+            <div class="item"><h3>Móvil 100 %</h3><p><strong>15/09/2025</strong> Optimizado iOS/Android.</p></div>
+        </div>
+    </section>
 
-        // Mostrar notificaciones
-        function showNotification(message) {
-            const notification = document.getElementById('notification');
-            notification.textContent = message;
-            notification.classList.remove('hidden');
-            setTimeout(() => {
-                notification.classList.add('hidden');
-            }, 3000);
-        }
-    </script>
-    
-    <button id="backToTop" class="back-to-top" aria-label="Volver arriba">⬆</button>
-    <script>
-        // Botón "Volver arriba"
-        const backToTop = document.getElementById('backToTop');
-        window.addEventListener('scroll', () => {
-            backToTop.style.display = window.scrollY > 300 ? 'block' : 'none';
-        });
-        
-        backToTop.addEventListener('click', () => {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        });
-    </script>
+    <!-- CONTACTO -->
+    <section class="contact" id="contacto">
+        <h2>Contáctanos</h2>
+        <p>¿Idea? ¿Bug? ¡Escríbenos!</p>
+        <form id="contactForm" name="contact" method="POST" data-netlify="true">
+            <input type="hidden" name="form-name" value="contact">
+            <p class="hidden"><label>No llenes: <input name="bot-field"></label></p>
+            <input type="text" name="name" placeholder="Nombre" required>
+            <input type="email" name="email" placeholder="Email" required>
+            <textarea name="message" placeholder="Mensaje" rows="5" required></textarea>
+            <button type="submit" class="btn">ENVIAR</button>
+        </form>
+    </section>
+</main>
+
+<footer>
+    <p>© 2025 PaceTrack — Hecho con <i class="fas fa-heart"></i> y <i class="fas fa-stopwatch"></i></p>
+    <div class="social">
+        <a href="https://instagram.com/pacetrackco" target="_blank"><i class="fab fa-instagram"></i></a>
+    </div>
+</footer>
+
+<div id="notification" class="notification"></div>
+<button id="backToTop" class="back-to-top">UP</button>
+
+<script src="script.js"></script>
+<script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 </body>
 </html>

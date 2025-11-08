@@ -1,83 +1,101 @@
-document.addEventListener('DOMContentLoaded', () => {
-    // Redirect for navigateButton (to timer/timer.html)
-    const navigateButton = document.getElementById('navigateButton');
-    if (navigateButton) {
-        navigateButton.addEventListener('click', () => {
-            window.location.href = '/timer/timer.html'; // Cambiado a ruta absoluta
-        });
-    } else {
-        console.error('Element with ID "navigateButton" not found');
-    }
+// PARTÍCULAS DE FUEGO (sutiles)
+const canvas = document.getElementById('particles');
+const ctx = canvas.getContext('2d');
+canvas.width = innerWidth; canvas.height = innerHeight;
+let particles = [];
 
-    // Redirect for navigateBut3 (to timer_loop/timer_loop.html)
-    const navigateBut3 = document.getElementById('navigateBut3');
-    if (navigateBut3) {
-    navigateBut3.addEventListener('click', () => {
-        console.log('Button navigateBut3 clicked, redirecting to /timer_loop/timer_loop.html');
-        window.location.href = 'timer_loop/timer_loop.html';
+class Particle {
+    constructor() {
+        this.x = Math.random() * canvas.width;
+        this.y = canvas.height + 10;
+        this.size = Math.random() * 3 + 1;
+        this.speedY = -(Math.random() * 2 + 0.5);
+        this.speedX = Math.random() * 1 - 0.5;
+        this.color = `hsl(20,100%,${60 + Math.random() * 20}%)`;
+    }
+    update() {
+        this.y += this.speedY;
+        this.x += this.speedX;
+        if (this.y < -10) this.y = canvas.height + 10;
+    }
+    draw() {
+        ctx.fillStyle = this.color;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+function init() { particles = []; for (let i = 0; i < 60; i++) particles.push(new Particle()); }
+function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    particles.forEach(p => { p.update(); p.draw(); });
+    requestAnimationFrame(animate);
+}
+init(); animate();
+window.addEventListener('resize', () => { canvas.width = innerWidth; canvas.height = innerHeight; init(); });
+
+// BOTONES + SONIDO MOTO
+document.querySelectorAll('.btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const audio = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-race-car-accelerating-1709.mp3');
+        audio.volume = 0.25; audio.play();
+        document.body.style.transform = 'scale(0.97)';
+        setTimeout(() => location.href = btn.dataset.url, 350);
     });
-    } else {
-    console.error('Element with ID "navigateBut3" not found');
+});
+
+// TEMA CLARO/OSCURO
+const toggle = document.getElementById('themeToggle');
+toggle.addEventListener('click', () => {
+    const isDark = document.body.style.background === 'var(--dark)';
+    document.body.style.background = isDark ? 'var(--light)' : 'var(--dark)';
+    document.body.style.color = isDark ? '#000' : 'var(--light)';
+    toggle.textContent = isDark ? 'SUN' : 'MOON';
+    localStorage.setItem('theme', isDark ? 'light' : 'dark');
+});
+if (localStorage.getItem('theme') === 'light') {
+    document.body.style.background = 'var(--light)';
+    document.body.style.color = '#000';
+    toggle.textContent = 'SUN';
 }
 
+// TRADUCTOR
+function googleTranslateElementInit() {
+    new google.translate.TranslateElement({pageLanguage:'es',autoDisplay:false},'google_translate_element');
+}
 
-    // Redirect for navigateBut2 (to timer_PC/PC/PC.html)
-    const navigateBut2 = document.getElementById('navigateBut2');
-    if (navigateBut2) {
-        navigateBut2.addEventListener('click', (e) => {
-            e.preventDefault(); // Prevent default behavior if it's an <a> or form button
-            console.log('Navigating to timer_PC/PC/PC.html');
-            window.location.href = '/timer_PC/PC/PC.html'; // Cambiado a ruta absoluta
-        });
-    } else {
-        console.error('Element with ID "navigateBut2" not found');
-    }
+// NOTIFICACIONES
+function show(msg) {
+    const n = document.getElementById('notification');
+    n.textContent = msg;
+    n.classList.add('show');
+    setTimeout(() => n.classList.remove('show'), 3000);
+}
 
-    // Form submission
-    const contactForm = document.getElementById('contactForm');
-    if (contactForm) {
-        contactForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            fetch('/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams(new FormData(e.target)).toString()
-            })
-            .then(() => {
-                alert('Thank you for your message! We will get back to you soon.');
-                e.target.reset();
-            })
-            .catch((error) => {
-                console.error('Form submission error:', error);
-                alert('There was an error submitting your message. Please try again.');
-            });
-        });
-    } else {
-        console.error('Element with ID "contactForm" not found');
-    }
+// FORMULARIO NETLIFY
+document.getElementById('contactForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    fetch('/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams(fd).toString()
+    })
+    .then(() => { show('¡Enviado!'); e.target.reset(); })
+    .catch(() => show('Error. Inténtalo de nuevo.'));
+});
 
-    // Smooth scroll for nav links
-    document.querySelectorAll('.nav-link').forEach(link => {
-        link.addEventListener('click', (e) => {
-            const href = link.getAttribute('href');
-            if (href && href.startsWith('#')) {
-                e.preventDefault();
-                const target = document.querySelector(href);
-                if (target) {
-                    window.scrollTo({
-                        top: target.offsetTop,
-                        behavior: 'smooth'
-                    });
-                }
-            }
-        });
+// SCROLL
+const btt = document.getElementById('backToTop');
+window.addEventListener('scroll', () => btt.classList.toggle('visible', scrollY > 300));
+btt.addEventListener('click', () => window.scrollTo({top:0,behavior:'smooth'}));
+
+// SCROLL SUAVE
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', e => {
+        const t = document.querySelector(a.getAttribute('href'));
+        if (t) { e.preventDefault(); window.scrollTo({top:t.offsetTop-80,behavior:'smooth'}); }
     });
-});
-window.addEventListener('scroll', () => {
-    const backToTopButton = document.getElementById('backToTop');
-    backToTopButton.classList.toggle('visible', window.scrollY > 300);
-});
-
-document.getElementById('backToTop').addEventListener('click', () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
 });
