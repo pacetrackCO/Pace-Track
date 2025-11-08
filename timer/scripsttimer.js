@@ -32,6 +32,10 @@ let isCalibrating = true;
 let calibrationSamples = [];
 const calibrationDuration = 3000;
 let recordedLaps = [];
+// === NUEVO: Estado para cooldown entre corredores ===
+let cooldownActive = false;
+let cooldownEndTime = 0;
+const cooldownDuration = 3000; // 3 segundos
 
 // === UTILIDADES ===
 function formatTime(ms) {
@@ -98,6 +102,36 @@ function drawLine(color = 'rgba(255,0,0,0.7)', flash = false) {
 }
 
 function vibrate(p) { if (navigator.vibrate) navigator.vibrate(p); }
+
+// === NUEVA FUNCIÓN: Iniciar cooldown entre corredores ===
+function startCooldown() {
+    cooldownActive = true;
+    cooldownEndTime = performance.now() + cooldownDuration;
+    timerState = 'paused';
+    statusMessage.textContent = `Esperando ${cooldownDuration/1000}s para siguiente corredor...`;
+    timerDisplay.style.color = 'orange';
+    
+    // Actualizar el display durante el cooldown
+    const updateCooldownDisplay = () => {
+        if (cooldownActive) {
+            const remaining = cooldownEndTime - performance.now();
+            if (remaining > 0) {
+                timerDisplay.textContent = formatTime(remaining);
+                requestAnimationFrame(updateCooldownDisplay);
+            } else {
+                // Cooldown completado
+                cooldownActive = false;
+                timerState = 'stopped';
+                const nextRunner = runners[currentRunnerIndex];
+                statusMessage.textContent = `Listo: ${nextRunner.name}`;
+                timerDisplay.textContent = '00:00.000';
+                timerDisplay.style.color = '#e2e8f0';
+                lastDisplayedTime = 0;
+            }
+        }
+    };
+    updateCooldownDisplay();
+}
 
 // === SETUP ===
 function setupWithNames() {
@@ -233,9 +267,10 @@ function detectMovement() {
         }
         const norm = diff / (frame.data.length / 4);
 
+        // === MODIFICADO: Verificar si el cooldown está activo ===
         if (isCalibrating) {
             calibrationSamples.push(norm);
-        } else if (timerState !== 'paused' && norm > detectionThreshold && (performance.now() - lastDetectionTime) > detectionCooldown) {
+        } else if (!cooldownActive && timerState !== 'paused' && norm > detectionThreshold && (performance.now() - lastDetectionTime) > detectionCooldown) {
             lastDetectionTime = performance.now();
             beep.currentTime = 0; beep.play();
             drawLine('lime', true);
@@ -274,10 +309,8 @@ function detectMovement() {
 
                         messageBoxOkButton.onclick = () => {
                             messageBox.style.display = 'none';
-                            timerState = 'stopped';
-                            statusMessage.textContent = `RONDA ${currentRound} - Listo: ${runners[0].name}`;
-                            timerDisplay.textContent = '00:00.000';
-                            lastDisplayedTime = 0;
+                            // === MODIFICADO: Iniciar cooldown después de completar ronda ===
+                            startCooldown();
                             messageBoxOkButton.onclick = () => messageBox.style.display = 'none';
                         };
                     } else {
@@ -285,6 +318,9 @@ function detectMovement() {
                         currentRunnerIndex++;
                         const next = runners[currentRunnerIndex];
                         statusMessage.textContent = `${runner.name} → ${formatTime(elapsed)} | Siguiente: ${next.name}`;
+                        
+                        // === NUEVO: Iniciar cooldown entre corredores ===
+                        startCooldown();
                     }
 
                     timerState = 'stopped';
@@ -297,25 +333,24 @@ function detectMovement() {
 
     previousFrameData = new ImageData(new Uint8ClampedArray(frame.data), frame.width, frame.height);
 
+    // === MODIFICADO: Actualizar display considerando cooldown ===
     if (timerState === 'running') {
         timerDisplay.textContent = formatTime(performance.now() - startTime);
-    } else {
+    } else if (!cooldownActive) {
         timerDisplay.textContent = formatTime(lastDisplayedTime);
     }
+    // Nota: Durante el cooldown, el display se actualiza en la función startCooldown()
 
     requestAnimationFrame(detectMovement);
 }
 
 // === EVENTOS ===
 resetButton.onclick = () => {
-    timerState = 'stopped';
-    recordedLaps = [];
-    currentRunnerIndex = 0;
-    currentRound = 1;
-    saveLaps();
-    displayLaps();
-    statusMessage.textContent = 'Reiniciando...';
-    setupCamera();
+    // 1. Limpiar TODO el localStorage
+    localStorage.clear();
+
+    // 2. Recargar la página (es lo más limpio y seguro)
+    location.reload();
 };
 
 sensitivitySlider.oninput = e => {
