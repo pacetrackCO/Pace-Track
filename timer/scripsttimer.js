@@ -37,6 +37,9 @@ let cooldownActive = false;
 let cooldownEndTime = 0;
 const cooldownDuration = 3000; // 3 segundos
 
+// === NUEVO: Almacenar tiempos por ronda ===
+let roundLaps = []; // Tiempos de la ronda actual
+
 // === UTILIDADES ===
 function formatTime(ms) {
     const m = Math.floor(ms / 60000);
@@ -55,6 +58,7 @@ function saveLaps() {
     localStorage.setItem('runners', JSON.stringify(runners));
     localStorage.setItem('currentRunnerIndex', currentRunnerIndex);
     localStorage.setItem('currentRound', currentRound);
+    localStorage.setItem('roundLaps', JSON.stringify(roundLaps)); // NUEVO: Guardar tiempos de ronda actual
 }
 
 function loadLaps() {
@@ -66,22 +70,54 @@ function loadLaps() {
     if (i) currentRunnerIndex = parseInt(i);
     const round = localStorage.getItem('currentRound');
     if (round) currentRound = parseInt(round);
+    const rl = localStorage.getItem('roundLaps');
+    if (rl) roundLaps = JSON.parse(rl);
     displayLaps();
 }
 
-function displayLaps() {
+// NUEVA FUNCIÓN: Mostrar lista de corredores (SOLO TIEMPOS DE RONDA ACTUAL)
+function displayRunnersList() {
     lapsList.innerHTML = '';
-    if (recordedLaps.length === 0) {
+    if (runners.length === 0) {
         lapsContainer.style.display = 'none';
         return;
     }
     lapsContainer.style.display = 'block';
-    recordedLaps.forEach(lap => {
+    
+    // Mostrar todos los corredores, incluso los que aún no han pasado
+    runners.forEach((runner, index) => {
         const li = document.createElement('li');
-        li.innerHTML = `<span>${lap.runnerName}:</span> <span>${formatTime(lap.time)}</span>`;
+        
+        // Buscar si este corredor ya tiene un tiempo registrado EN LA RONDA ACTUAL
+        const lapRecord = roundLaps.find(lap => 
+            lap.runnerName === runner.name && 
+            roundLaps.indexOf(lap) % runners.length === index
+        );
+        
+        if (lapRecord) {
+            // Ya pasó - mostrar tiempo
+            li.innerHTML = `<span>${runner.name}:</span> <span>${formatTime(lapRecord.time)}</span>`;
+            li.style.color = '#10b981'; // Verde para los que ya pasaron
+            li.style.fontWeight = '600';
+        } else if (index === currentRunnerIndex && timerState === 'running') {
+            // Es el corredor actual y está corriendo
+            li.innerHTML = `<span>${runner.name}:</span> <span>→ EN CURSO</span>`;
+            li.style.color = '#3b82f6'; // Azul para el actual
+            li.style.fontWeight = '700';
+        } else {
+            // Aún no ha pasado
+            li.innerHTML = `<span>${runner.name}:</span> <span>--:--.---</span>`;
+            li.style.color = '#9ca3af'; // Gris para pendientes
+        }
+        
         lapsList.appendChild(li);
     });
     lapsList.scrollTop = lapsList.scrollHeight;
+}
+
+// FUNCIÓN ACTUALIZADA: Reemplazar displayLaps
+function displayLaps() {
+    displayRunnersList(); // Ahora usamos la nueva función
 }
 
 function drawLine(color = 'rgba(255,0,0,0.7)', flash = false) {
@@ -111,6 +147,9 @@ function startCooldown() {
     statusMessage.textContent = `Esperando ${cooldownDuration/1000}s para siguiente corredor...`;
     timerDisplay.style.color = 'orange';
     
+    // Actualizar la lista durante el cooldown
+    displayRunnersList();
+    
     // Actualizar el display durante el cooldown
     const updateCooldownDisplay = () => {
         if (cooldownActive) {
@@ -125,12 +164,36 @@ function startCooldown() {
                 const nextRunner = runners[currentRunnerIndex];
                 statusMessage.textContent = `Listo: ${nextRunner.name}`;
                 timerDisplay.textContent = '00:00.000';
-                timerDisplay.style.color = '#e2e8f0';
+                timerDisplay.style.color = '#e2e8f0'; // Color normal
                 lastDisplayedTime = 0;
+                // Actualizar lista para mostrar siguiente corredor como pendiente
+                displayRunnersList();
             }
         }
     };
     updateCooldownDisplay();
+}
+
+// === NUEVA FUNCIÓN: Iniciar nueva ronda ===
+function startNewRound() {
+    // Guardar todos los tiempos en recordedLaps (para PDF)
+    recordedLaps.push(...roundLaps);
+    
+    // Limpiar roundLaps para la nueva ronda
+    roundLaps = [];
+    
+    // Reiniciar índice de corredor
+    currentRunnerIndex = 0;
+    
+    // Actualizar estado
+    timerState = 'stopped';
+    statusMessage.textContent = `Ronda ${currentRound} - Listo: ${runners[0].name}`;
+    timerDisplay.textContent = '00:00.000';
+    timerDisplay.style.color = '#e2e8f0';
+    
+    // Guardar y mostrar lista actualizada
+    saveLaps();
+    displayRunnersList();
 }
 
 // === SETUP ===
@@ -161,46 +224,101 @@ function saveRunnerNames() {
     });
     currentRunnerIndex = 0;
     currentRound = 1;
+    recordedLaps = []; // Limpiar tiempos anteriores
+    roundLaps = []; // NUEVO: Limpiar tiempos de ronda actual
     document.getElementById('names-modal').style.display = 'none';
     document.getElementById('app-container').style.display = 'flex';
     saveLaps();
     setupCamera();
     createButtons();
     statusMessage.textContent = `Ronda 1 - Listo: ${runners[0].name}`;
+    // MOSTRAR LISTA INMEDIATAMENTE
+    displayRunnersList();
 }
 
 function setupWithoutNames() {
     runners = [{ id: 1, name: 'Corredor 1' }];
     currentRunnerIndex = 0;
     currentRound = 1;
+    recordedLaps = []; // Limpiar tiempos anteriores
+    roundLaps = []; // NUEVO: Limpiar tiempos de ronda actual
     document.getElementById('setup-modal').style.display = 'none';
     document.getElementById('app-container').style.display = 'flex';
     saveLaps();
     setupCamera();
     createButtons();
     statusMessage.textContent = `Ronda 1 - Listo: ${runners[0].name}`;
+    // MOSTRAR LISTA INMEDIATAMENTE
+    displayRunnersList();
 }
 
 function createButtons() {
-    if (document.getElementById('download-pdf')) return;
+if (document.getElementById('download-pdf')) return;
 
-    const dl = document.createElement('button');
-    dl.id = 'download-pdf';
-    dl.textContent = 'Descargar PDF';
-    dl.className = 'gradient-purple';
-    dl.onclick = () => {
-        if (recordedLaps.length === 0) return showMessageBox('No hay tiempos');
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-        doc.setFontSize(20);
-        doc.text('REPORTE DE TIEMPOS', 105, 20, { align: 'center' });
-        doc.setFontSize(12);
-        doc.text(`Ronda ${currentRound-1} | ${new Date().toLocaleDateString()}`, 20, 35);
-        let y = 50;
-        recordedLaps.forEach(l => { doc.text(`${l.runnerName}: ${formatTime(l.time)}`, 30, y); y += 10; });
-        doc.save(`ronda_${currentRound-1}.pdf`);
-        showMessageBox('PDF descargado');
-    };
+const dl = document.createElement('button');
+dl.id = 'download-pdf';
+dl.textContent = 'Descargar PDF';
+dl.className = 'gradient-purple';
+dl.onclick = () => {
+    if (recordedLaps.length === 0) return showMessageBox('No hay tiempos');
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    // Título principal
+    doc.setFontSize(20);
+    doc.text('REPORTE DE TIEMPOS POR RONDAS', 105, 20, { align: 'center' });
+    
+    // Fecha
+    doc.setFontSize(10);
+    doc.text(`Generado: ${new Date().toLocaleDateString()}`, 20, 30);
+    
+    // Calcular número de rondas completadas
+    const lapsPerRound = runners.length;
+    const totalRounds = Math.ceil(recordedLaps.length / lapsPerRound);
+    
+    let y = 45; // Posición vertical inicial
+    
+    // Generar contenido para cada ronda
+    for (let round = 1; round <= totalRounds; round++) {
+        // Calcular índices de los laps para esta ronda
+        const startIndex = (round - 1) * lapsPerRound;
+        const endIndex = Math.min(startIndex + lapsPerRound, recordedLaps.length);
+        const roundLaps = recordedLaps.slice(startIndex, endIndex);
+        
+        // Encabezado de ronda
+        doc.setFontSize(14);
+        doc.setTextColor(0, 51, 153); // Azul para el encabezado
+        doc.text(`Ronda ${round}`, 20, y);
+        y += 8;
+        
+        // Tiempos de la ronda
+        doc.setFontSize(10);
+        doc.setTextColor(0, 0, 0); // Negro para los tiempos
+        
+        roundLaps.forEach((lap, index) => {
+            const position = index + 1;
+            doc.text(`${position}. ${lap.runnerName}: ${formatTime(lap.time)}`, 25, y);
+            y += 6;
+        });
+        
+        y += 8; // Espacio entre rondas
+        
+        // Si no queda espacio en la página, crear nueva página
+        if (y > 270 && round < totalRounds) {
+            doc.addPage();
+            y = 20;
+        }
+    }
+    
+    // Estadísticas finales
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Total de rondas: ${totalRounds}`, 20, y + 5);
+    doc.text(`Total de tiempos registrados: ${recordedLaps.length}`, 20, y + 12);
+    
+    doc.save(`reporte_rondas_${new Date().toISOString().split('T')[0]}.pdf`);
+    showMessageBox('PDF descargado con tiempos agrupados por rondas');
+};
 
     const add = document.createElement('button');
     add.textContent = '+ Corredor';
@@ -210,6 +328,8 @@ function createButtons() {
         runners.push({ id: n, name: `Corredor ${n}` });
         saveLaps();
         showMessageBox(`+ Corredor ${n}`);
+        // Actualizar lista cuando se agrega nuevo corredor
+        displayRunnersList();
     };
 
     resetButton.after(dl);
@@ -245,6 +365,8 @@ function startCalibration() {
         isCalibrating = false;
         timerDisplay.textContent = '00:00.000';
         timerDisplay.style.color = '#e2e8f0';
+        // Actualizar lista después de calibrar
+        displayRunnersList();
     }, calibrationDuration);
 }
 
@@ -280,7 +402,9 @@ function detectMovement() {
                 startTime = performance.now();
                 timerState = 'running';
                 statusMessage.textContent = '¡CORRIENDO!';
-                timerDisplay.style.color = '#00ffff';
+                timerDisplay.style.color = '#ff4444'; // Rojo al iniciar
+                // Actualizar lista para mostrar "EN CURSO"
+                displayRunnersList();
             } else {
                 const elapsed = performance.now() - startTime;
                 const runner = runners[currentRunnerIndex];
@@ -289,10 +413,9 @@ function detectMovement() {
                     statusMessage.textContent = 'Vuelta muy rápida';
                     drawLine('yellow', true);
                 } else {
-                    // VUELTA VÁLIDA
-                    recordedLaps.push({ time: elapsed, runnerName: runner.name });
+                    // VUELTA VÁLIDA - Guardar en roundLaps (ronda actual)
+                    roundLaps.push({ time: elapsed, runnerName: runner.name });
                     saveLaps();
-                    displayLaps();
 
                     // === AVANZAR CORREDOR ===
                     const wasLast = currentRunnerIndex === runners.length - 1;
@@ -300,8 +423,7 @@ function detectMovement() {
                     if (wasLast) {
                         // RONDA COMPLETADA
                         currentRound++;
-                        currentRunnerIndex = 0;
-
+                        
                         showMessageBox(`¡RONDA ${currentRound-1} COMPLETADA!\n\nTodos los corredores han pasado.\n\nPulsa OK para la RONDA ${currentRound}`);
 
                         timerState = 'paused';
@@ -309,8 +431,8 @@ function detectMovement() {
 
                         messageBoxOkButton.onclick = () => {
                             messageBox.style.display = 'none';
-                            // === MODIFICADO: Iniciar cooldown después de completar ronda ===
-                            startCooldown();
+                            // === NUEVO: Iniciar nueva ronda en lugar de cooldown ===
+                            startNewRound();
                             messageBoxOkButton.onclick = () => messageBox.style.display = 'none';
                         };
                     } else {
@@ -325,7 +447,10 @@ function detectMovement() {
 
                     timerState = 'stopped';
                     lastDisplayedTime = elapsed;
-                    timerDisplay.style.color = '#e2e8f0';
+                    timerDisplay.style.color = '#e2e8f0'; // Color normal al detener
+                    
+                    // ACTUALIZAR LISTA CON NUEVO TIEMPO
+                    displayRunnersList();
                 }
             }
         }
@@ -335,7 +460,15 @@ function detectMovement() {
 
     // === MODIFICADO: Actualizar display considerando cooldown ===
     if (timerState === 'running') {
-        timerDisplay.textContent = formatTime(performance.now() - startTime);
+        const currentTime = performance.now() - startTime;
+        timerDisplay.textContent = formatTime(currentTime);
+        
+        // === NUEVO: Cambiar a rojo durante los primeros 3 segundos ===
+        if (currentTime < 3000) {
+            timerDisplay.style.color = '#ff4444'; // Rojo cuando no puede parar
+        } else {
+            timerDisplay.style.color = '#00ffff'; // Cian normal cuando puede parar
+        }
     } else if (!cooldownActive) {
         timerDisplay.textContent = formatTime(lastDisplayedTime);
     }
@@ -379,6 +512,8 @@ window.onload = () => {
             setupCamera();
             createButtons();
             statusMessage.textContent = `Ronda ${currentRound} - Listo: ${runners[currentRunnerIndex].name}`;
+            // MOSTRAR LISTA INMEDIATAMENTE AL CARGAR
+            displayRunnersList();
         } else {
             document.getElementById('setup-modal').style.display = 'flex';
         }
