@@ -1,114 +1,264 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es-ES" itemscope itemtype="https://schema.org/WebApplication">
 <head>
+    <!-- Codificación y compatibilidad -->
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>PaceTrack - Cronómetro Online para Pumptrack</title>
-    <meta name="description" content="Cronómetro online profesional para pumptrack, velódromo y atletismo. Gratis y fácil.">
-    <meta name="keywords" content="cronómetro pumptrack, velódromo, atletismo, pacetrack">
-    <meta property="og:title" content="PaceTrack">
-    <meta property="og:description" content="Cronómetro online con precisión de milisegundos">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    
+    <!-- Título SEO optimizado -->
+    <title>PaceTrack ⏱️ | Cronómetro Profesional para Pumptrack, Velódromo y Atletismo</title>
+    
+    <!-- Meta description perfecta -->
+    <meta name="description" content="Cronómetro online profesional con precisión de milisegundos para pumptrack, velódromo y atletismo. Gratuito, fácil de usar y optimizado para móvil. Mide tus tiempos como un profesional.">
+    
+    <!-- Keywords estratégicas -->
+    <meta name="keywords" content="cronómetro pumptrack, cronómetro velódromo, medir tiempos atletismo, cronómetro profesional, pace track, medir vueltas pista, cronómetro móvil, deportes velocidad, bmx timing, mtb pumptrack">
+    
+    <!-- Open Graph optimizado -->
+    <meta property="og:title" content="PaceTrack ⏱️ | Cronómetro Profesional para Deportes de Velocidad">
+    <meta property="og:description" content="Cronómetro online con precisión de milisegundos para pumptrack, velódromo y atletismo. Gratuito y optimizado para móvil.">
     <meta property="og:image" content="https://pacetrack.es/images/mi_logo.png">
+    <meta property="og:image:alt" content="PaceTrack - Cronómetro Profesional">
     <meta property="og:url" content="https://pacetrack.es">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="PaceTrack">
+    <meta property="og:locale" content="es_ES">
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="PaceTrack ⏱️ | Cronómetro Profesional">
+    <meta name="twitter:description" content="Cronómetro online con precisión de milisegundos para deportes de velocidad">
+    <meta name="twitter:image" content="https://pacetrack.es/images/mi_logo.png">
+    
+    <!-- Canonical y autoría -->
     <link rel="canonical" href="https://pacetrack.es">
+    <link rel="author" href="humans.txt">
+    
+    <!-- Favicon y iconos múltiples -->
     <link rel="icon" href="images/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="images/favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon.png">
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- Preconexiones críticas -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    
+    <!-- CSS -->
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Orbitron&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    
+    <!-- Schema.org JSON-LD optimizado -->
     <script type="application/ld+json">
-    {"@context":"https://schema.org","@type":"WebApplication","name":"PaceTrack","url":"https://pacetrack.es"}
+    {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "PaceTrack",
+        "url": "https://pacetrack.es",
+        "description": "Cronómetro online profesional con precisión de milisegundos para pumptrack, velódromo y atletismo",
+        "applicationCategory": "SportsApplication",
+        "operatingSystem": "Any",
+        "permissions": "microphone",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "EUR"
+        },
+        "author": {
+            "@type": "Organization",
+            "name": "PaceTrack",
+            "url": "https://pacetrack.es"
+        },
+        "screenshot": "https://pacetrack.es/images/mi_logo.png",
+        "featureList": [
+            "Precisión milisegundos",
+            "Cronómetro para pumptrack",
+            "Medición para velódromo",
+            "Temporizador atletismo",
+            "Exportación PDF",
+            "Sincronización PC"
+        ]
+    }
+    </script>
+    
+    <!-- Breadcrumb Schema -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "Inicio",
+                "item": "https://pacetrack.es"
+            },
+            {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "Cronómetros",
+                "item": "https://pacetrack.es#cronometros"
+            }
+        ]
+    }
     </script>
 </head>
-<body>
+<body itemscope itemtype="https://schema.org/WebPage">
 <canvas id="particles"></canvas>
 
-<button id="themeToggle" aria-label="Tema oscuro">MOON</button>
-<div id="google_translate_element" class="google-translate"></div>
+<!-- Navegación accesible -->
+<nav aria-label="Navegación principal">
+    <button id="themeToggle" aria-label="Cambiar entre tema claro y oscuro">MOON</button>
+    <div id="google_translate_element" class="google-translate" aria-label="Selector de idioma"></div>
+</nav>
 
-<header>
-    <img src="images/mi_logo.png" alt="PaceTrack" class="logo">
-    <h1>PaceTrack</h1>
-    <p class="tagline">Cronómetro profesional · Gratuito · Milisegundos</p>
+<header role="banner">
+    <img src="images/mi_logo.png" alt="PaceTrack - Cronómetro Profesional para Deportes de Velocidad" class="logo" itemprop="image">
+    <h1 itemprop="headline">PaceTrack</h1>
+    <p class="tagline" itemprop="description">Cronómetro profesional · Gratuito · Precisión milisegundos</p>
 </header>
 
-<main id="main">
-    <!-- HERO -->
-    <div class="heroes" id="inicio">
-        <div class="card">
-            <h2>PaceTrack Original</h2>
-            <p>El clásico. Arranca, para y guarda tus vueltas.</p>
-            <button class="btn" data-url="/timer/timer.html">INICIAR</button>
+<main id="main" role="main">
+    <!-- HERO SECTION con estructura semántica -->
+    <section class="heroes" id="inicio" aria-labelledby="cronometros-titulo">
+        <h2 id="cronometros-titulo" class="visually-hidden">Selección de Cronómetros PaceTrack</h2>
+        <div class="card" itemscope itemtype="https://schema.org/SoftwareApplication">
+            <h3 itemprop="name">PaceTrack Original</h3>
+            <p itemprop="description">El cronómetro clásico. Arranca, para y guarda tus vueltas con precisión profesional.</p>
+            <button class="btn" data-url="/timer/timer.html" aria-label="Abrir Cronómetro PaceTrack Original">INICIAR</button>
         </div>
-        <div class="card">
-            <h2>PaceTrack Loop</h2>
-            <p>Vueltas automáticas sin tocar el móvil.</p>
-            <button class="btn" data-url="/timer_loop/timer_loop.html">LOOP</button>
+        <div class="card" itemscope itemtype="https://schema.org/SoftwareApplication">
+            <h3 itemprop="name">PaceTrack Loop</h3>
+            <p itemprop="description">Vueltas automáticas sin tocar el móvil. Ideal para entrenamientos continuos.</p>
+            <button class="btn" data-url="/timer_loop/timer_loop.html" aria-label="Abrir Cronómetro PaceTrack Loop">LOOP</button>
         </div>
-        <div class="card">
-            <h2>PaceTrack Server</h2>
-            <p>Exporta a PDF y sincroniza con PC.</p>
-            <button class="btn" data-url="Construccion/Construccion.html">SERVER</button>
-        </div>
-    </div>
-
-    <!-- CARACTERÍSTICAS -->
-    <section id="caracteristicas">
-        <h2>¿Por qué PaceTrack?</h2>
-        <div class="grid">
-            <div class="item"><span class="icon">⏱️</span><h3>Precisión milisegundos</h3><p>Ideal para pumptrack y velódromo.</p></div>
-            <div class="item"><span class="icon">🚀</span><h3>Fácil de usar</h3><p>Una pulsación y listo.</p></div>
-            <div class="item"><span class="icon">📱</span><h3>100 % móvil</h3><p>Funciona en cualquier smartphone.</p></div>
+        <div class="card" itemscope itemtype="https://schema.org/SoftwareApplication">
+            <h3 itemprop="name">PaceTrack Server</h3>
+            <p itemprop="description">Exporta a PDF y sincroniza con PC. Funcionalidades avanzadas para profesionales.</p>
+            <button class="btn" data-url="Construccion/Construccion.html" aria-label="Abrir PaceTrack Server">SERVER</button>
         </div>
     </section>
 
-    <!-- DEPORTES -->
-    <section class="info">
-        <h2>Deportes de velocidad</h2>
-        <p>La herramienta favorita de riders y entrenadores.</p>
+    <!-- CARACTERÍSTICAS con microdata -->
+    <section id="caracteristicas" aria-labelledby="caracteristicas-titulo">
+        <h2 id="caracteristicas-titulo">¿Por qué Elegir PaceTrack?</h2>
         <div class="grid">
-            <div class="item"><h3>Pumptrack</h3><p>Mide cada pump y mejora tu flow.</p></div>
-            <div class="item"><h3>Velódromo</h3><p>Cronometraje profesional en pista.</p></div>
-            <div class="item"><h3>Atletismo</h3><p>Carreras, saltos y lanzamientos.</p></div>
+            <div class="item" itemprop="featureList">
+                <span class="icon" aria-hidden="true">⏱️</span>
+                <h3>Precisión Milisegundos</h3>
+                <p>Medición profesional ideal para pumptrack, velódromo y competiciones.</p>
+            </div>
+            <div class="item" itemprop="featureList">
+                <span class="icon" aria-hidden="true">🚀</span>
+                <h3>Fácil de Usar</h3>
+                <p>Interfaz intuitiva, una pulsación y listo. Sin complicaciones.</p>
+            </div>
+            <div class="item" itemprop="featureList">
+                <span class="icon" aria-hidden="true">📱</span>
+                <h3>100% Móvil</h3>
+                <p>Optimizado para cualquier smartphone iOS y Android.</p>
+            </div>
         </div>
     </section>
 
-    <!-- NOVEDADES -->
-    <section class="news" id="novedades">
-        <h2>Novedades</h2>
+    <!-- DEPORTES con schema -->
+    <section class="info" aria-labelledby="deportes-titulo">
+        <h2 id="deportes-titulo">Deportes de Velocidad</h2>
+        <p>La herramienta favorita de riders, ciclistas y entrenadores profesionales.</p>
         <div class="grid">
-            <div class="item"><h3>Nuevo temaa</h3><p><strong>08/11/2025</strong> Nuevo diseño🔥.</p></div>            
-            <div class="item"><h3>PDF Export</h3><p><strong>14/10/2025</strong> Descarga tus tiempos.</p></div>
-            <div class="item"><h3>PaceTrack Server</h3><p><strong>29/9/2025</strong> Sincronización con PC.</p></div>
-            <div class="item"><h3>Móvil 100 %</h3><p><strong>15/09/2025</strong> Optimizado iOS/Android.</p></div>
+            <div class="item" itemscope itemtype="https://schema.org/SportsActivityLocation">
+                <h3 itemprop="name">Pumptrack</h3>
+                <p itemprop="description">Mide tus tiempos y mejora tu flow en el circuito.</p>
+            </div>
+            <div class="item" itemscope itemtype="https://schema.org/SportsActivityLocation">
+                <h3 itemprop="name">Velódromo</h3>
+                <p itemprop="description">Mide tus vueltas de la manera más sencilla.</p>
+            </div>
+            <div class="item" itemscope itemtype="https://schema.org/SportsActivityLocation">
+                <h3 itemprop="name">Atletismo</h3>
+                <p itemprop="description">Mejora tus 400m sencillamente.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- NOVEDADES con fechas estructuradas -->
+    <section class="news" id="novedades" aria-labelledby="novedades-titulo">
+        <h2 id="novedades-titulo">Novedades y Actualizaciones</h2>
+        <div class="grid">
+            <div class="item" itemscope itemtype="https://schema.org/Update">
+                <h3 itemprop="name">Nuevo Diseño</h3>
+                <p><time datetime="2025-11-08" itemprop="datePublished">08/11/2025</time> <span itemprop="description">Nuevo diseño revolucionario y mejoras de interfaz.</span></p>
+            </div>
+            <div class="item" itemscope itemtype="https://schema.org/Update">
+                <h3 itemprop="name">Exportación PDF</h3>
+                <p><time datetime="2025-10-14" itemprop="datePublished">14/10/2025</time> <span itemprop="description">Descarga tus tiempos en formato PDF profesional.</span></p>
+            </div>
+            <div class="item" itemscope itemtype="https://schema.org/Update">
+                <h3 itemprop="name">PaceTrack Server</h3>
+                <p><time datetime="2025-09-29" itemprop="datePublished">29/09/2025</span> <span itemprop="description">Sincronización avanzada con ordenador (En proceso).</span></p>
+            </div>
+            <div class="item" itemscope itemtype="https://schema.org/Update">
+                <h3 itemprop="name">Optimización Móvil</h3>
+                <p><time datetime="2025-09-15" itemprop="datePublished">15/09/2025</time> <span itemprop="description">Completamente optimizado para iOS y Android.</span></p>
+            </div>
         </div>
     </section>
 
     <!-- CONTACTO -->
-    <section class="contact" id="contacto">
-        <h2>Contáctanos</h2>
-        <p>¿Idea? ¿Bug? ¡Escríbenos!</p>
-        <form id="contactForm" name="contact" method="POST" data-netlify="true">
+    <section class="contact" id="contacto" aria-labelledby="contacto-titulo">
+        <h2 id="contacto-titulo">Contacto y Soporte</h2>
+        <p>¿Tienes una idea? ¿Encontraste un bug? ¡Nos encanta escucharte!</p>
+        <form id="contactForm" name="contact" method="POST" data-netlify="true" itemscope itemtype="https://schema.org/ContactPoint">
             <input type="hidden" name="form-name" value="contact">
-            <p class="hidden"><label>No llenes: <input name="bot-field"></label></p>
-            <input type="text" name="name" placeholder="Nombre" required>
-            <input type="email" name="email" placeholder="Email" required>
-            <textarea name="message" placeholder="Mensaje" rows="5" required></textarea>
-            <button type="submit" class="btn">ENVIAR</button>
+            <p class="hidden"><label>No llenes este campo: <input name="bot-field"></label></p>
+            
+            <label for="nombre" class="visually-hidden">Tu nombre</label>
+            <input type="text" id="nombre" name="name" placeholder="Nombre" required itemprop="name">
+            
+            <label for="email" class="visually-hidden">Tu email</label>
+            <input type="email" id="email" name="email" placeholder="Email" required itemprop="email">
+            
+            <label for="mensaje" class="visually-hidden">Tu mensaje</label>
+            <textarea id="mensaje" name="message" placeholder="Mensaje" rows="5" required itemprop="description"></textarea>
+            
+            <button type="submit" class="btn">ENVIAR MENSAJE</button>
         </form>
     </section>
 </main>
 
-<footer>
-    <p>© 2025 PaceTrack — Hecho con <i class="fas fa-heart"></i> y <i class="fas fa-stopwatch"></i></p>
+<footer role="contentinfo" itemscope itemtype="https://schema.org/WPFooter">
+    <p itemprop="copyrightYear">&copy; 2025 PaceTrack — Hecho con <i class="fas fa-heart" aria-hidden="true"></i> y <i class="fas fa-stopwatch" aria-hidden="true"></i> para la comunidad deportiva</p>
     <div class="social">
-        <a href="https://instagram.com/pacetrackco" target="_blank"><i class="fab fa-instagram"></i></a>
+        <a href="https://instagram.com/pacetrackco" target="_blank" rel="noopener noreferrer" aria-label="Síguenos en Instagram">
+            <i class="fab fa-instagram" aria-hidden="true"></i>
+        </a>
     </div>
 </footer>
 
-<div id="notification" class="notification"></div>
-<button id="backToTop" class="back-to-top">UP</button>
+<div id="notification" class="notification" role="alert" aria-live="polite"></div>
+<button id="backToTop" class="back-to-top" aria-label="Volver al inicio">UP</button>
 
-<script src="script.js"></script>
-<script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+<!-- Scripts optimizados -->
+<script src="script.js" defer></script>
+<script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit" defer></script>
+
+<!-- CSS para elementos visualmente ocultos pero accesibles -->
+<style>
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+</style>
 </body>
 </html>
