@@ -5,3 +5,18 @@
 
 [functions]
   directory = "netlify/functions"  # Solo si usas funciones serverless
+
+[[redirects]]
+  from = "/timer"
+  to = "/timer/timer.html"
+  status = 200
+
+[[redirects]]
+  from = "/timer loop"
+  to = "/timer_loop/timer_loop.html"
+  status = 200
+
+[[redirects]]
+  from = "/construccion"
+  to = "/Construccion/Construccion.html"
+  status = 200
