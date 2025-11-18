@@ -1,5 +1,2 @@
-# Redirige cualquier .html a sin extensión
-/*.html   301!
-
-# Sirve el .html cuando la URL no tiene extensión (con o sin barra final)
+/*.html   /:splat   301!
 /*        /:splat.html   200!
