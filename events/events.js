@@ -174,9 +174,6 @@ document.addEventListener('DOMContentLoaded', () => {
         filters.className = 'event-filters';
         filters.innerHTML = `
             <div style="text-align: center; margin-bottom: 2rem;">
-                <button class="btn filter-btn" data-filter="all">Todos los Eventos</button>
-                <button class="btn filter-btn" data-filter="upcoming">Próximos</button>
-                <button class="btn filter-btn" data-filter="past">Pasados</button>
             </div>
         `;
         
