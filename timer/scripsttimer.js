@@ -196,144 +196,6 @@ function startNewRound() {
     displayRunnersList();
 }
 
-// === NUEVAS FUNCIONES PARA EXCEL ===
-function setupWithExcel() {
-    document.getElementById('setup-modal').style.display = 'none';
-    document.getElementById('excel-modal').style.display = 'flex';
-    
-    // Resetear vista previa
-    document.getElementById('excel-preview').style.display = 'none';
-    document.getElementById('names-list').innerHTML = '';
-    
-    // Agregar evento para mostrar vista previa al seleccionar archivo
-    const fileInput = document.getElementById('excel-file');
-    fileInput.onchange = previewExcelFile;
-}
-
-function previewExcelFile() {
-    const fileInput = document.getElementById('excel-file');
-    const file = fileInput.files[0];
-    
-    if (!file) return;
-    
-    const reader = new FileReader();
-    
-    reader.onload = function(e) {
-        try {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            
-            // Tomar la primera hoja
-            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-            const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
-            
-            // Extraer nombres de la primera columna
-            const names = [];
-            jsonData.forEach((row, index) => {
-                if (row[0] && String(row[0]).trim() !== '') {
-                    names.push(String(row[0]).trim());
-                }
-            });
-            
-            if (names.length === 0) {
-                showMessageBox('No se encontraron nombres en el archivo Excel');
-                return;
-            }
-            
-            // Mostrar vista previa
-            const preview = document.getElementById('excel-preview');
-            const namesList = document.getElementById('names-list');
-            namesList.innerHTML = '';
-            
-            names.forEach((name, index) => {
-                const li = document.createElement('li');
-                li.textContent = `${index + 1}. ${name}`;
-                namesList.appendChild(li);
-            });
-            
-            preview.style.display = 'block';
-            
-        } catch (error) {
-            console.error('Error procesando Excel:', error);
-            showMessageBox('Error al procesar el archivo Excel');
-        }
-    };
-    
-    reader.onerror = function() {
-        showMessageBox('Error al leer el archivo');
-    };
-    
-    reader.readAsArrayBuffer(file);
-}
-
-function processExcelFile() {
-    const fileInput = document.getElementById('excel-file');
-    const file = fileInput.files[0];
-    
-    if (!file) {
-        showMessageBox('Por favor seleccione un archivo Excel');
-        return;
-    }
-
-    const reader = new FileReader();
-    
-    reader.onload = function(e) {
-        try {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            
-            // Tomar la primera hoja
-            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-            const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
-            
-            // Extraer nombres de la primera columna
-            const names = [];
-            jsonData.forEach((row, index) => {
-                if (row[0] && String(row[0]).trim() !== '') {
-                    names.push(String(row[0]).trim());
-                }
-            });
-            
-            if (names.length === 0) {
-                showMessageBox('No se encontraron nombres en el archivo Excel');
-                return;
-            }
-            
-            // Asignar los nombres a los runners
-            runners = names.map((name, index) => ({
-                id: index + 1,
-                name: name
-            }));
-            
-            currentRunnerIndex = 0;
-            currentRound = 1;
-            recordedLaps = [];
-            roundLaps = [];
-            
-            document.getElementById('excel-modal').style.display = 'none';
-            document.getElementById('app-container').style.display = 'flex';
-            
-            saveLaps();
-            setupCamera();
-            createButtons();
-            statusMessage.textContent = `Ronda 1 - Listo: ${runners[0].name}`;
-            displayRunnersList();
-            
-            showMessageBox(`Cargados ${names.length} nombres desde Excel`);
-            
-        } catch (error) {
-            console.error('Error procesando Excel:', error);
-            showMessageBox('Error al procesar el archivo Excel');
-        }
-    };
-    
-    reader.onerror = function() {
-        showMessageBox('Error al leer el archivo');
-    };
-    
-    reader.readAsArrayBuffer(file);
-}
-
 // === SETUP ===
 function setupWithNames() {
     document.getElementById('setup-modal').style.display = 'none';
@@ -633,15 +495,9 @@ messageBoxOkButton.onclick = () => messageBox.style.display = 'none';
 
 document.getElementById('setup-with-names').onclick = setupWithNames;
 document.getElementById('setup-without-names').onclick = setupWithoutNames;
-document.getElementById('setup-excel').onclick = setupWithExcel;
 document.getElementById('save-names').onclick = saveRunnerNames;
 document.getElementById('cancel-names').onclick = () => {
     document.getElementById('names-modal').style.display = 'none';
-    document.getElementById('setup-modal').style.display = 'flex';
-};
-document.getElementById('process-excel').onclick = processExcelFile;
-document.getElementById('cancel-excel').onclick = () => {
-    document.getElementById('excel-modal').style.display = 'none';
     document.getElementById('setup-modal').style.display = 'flex';
 };
 
