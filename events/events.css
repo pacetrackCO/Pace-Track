@@ -51,7 +51,7 @@ header {
 h1 {
   font-family: 'Orbitron', monospace;
   font-size: 3.8rem;
-  color: #fff;
+  color: #000000;
   text-shadow: 0 0 20px var(--accent);
   letter-spacing: 6px;
 }
