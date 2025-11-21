@@ -196,6 +196,107 @@ function startNewRound() {
     displayRunnersList();
 }
 
+// === FUNCIONES PARA EXCEL ===
+function setupWithExcel() {
+    document.getElementById('setup-modal').style.display = 'none';
+    document.getElementById('excel-modal').style.display = 'flex';
+    
+    // Limpiar preview anterior
+    document.getElementById('excel-file').value = '';
+    document.getElementById('excel-preview').style.display = 'none';
+    document.getElementById('names-list').innerHTML = '';
+}
+
+function processExcelFile() {
+    const fileInput = document.getElementById('excel-file');
+    const preview = document.getElementById('excel-preview');
+    const namesList = document.getElementById('names-list');
+    
+    if (!fileInput.files.length) {
+        showMessageBox('Por favor seleccione un archivo Excel');
+        return;
+    }
+    
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+    
+    reader.onload = function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            
+            // Tomar la primera hoja
+            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+            const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+            
+            // Extraer nombres (primera columna)
+            const names = [];
+            jsonData.forEach(row => {
+                if (row.length > 0 && row[0] && String(row[0]).trim()) {
+                    names.push(String(row[0]).trim());
+                }
+            });
+            
+            if (names.length === 0) {
+                showMessageBox('No se encontraron nombres en el archivo');
+                return;
+            }
+            
+            // Mostrar preview
+            namesList.innerHTML = '';
+            names.forEach((name, index) => {
+                const li = document.createElement('li');
+                li.textContent = `${index + 1}. ${name}`;
+                namesList.appendChild(li);
+            });
+            
+            preview.style.display = 'block';
+            
+            // Guardar nombres temporalmente
+            window.tempExcelNames = names;
+            
+        } catch (error) {
+            console.error('Error procesando Excel:', error);
+            showMessageBox('Error al procesar el archivo Excel');
+        }
+    };
+    
+    reader.onerror = function() {
+        showMessageBox('Error al leer el archivo');
+    };
+    
+    reader.readAsArrayBuffer(file);
+}
+
+function saveExcelNames() {
+    if (!window.tempExcelNames || window.tempExcelNames.length === 0) {
+        showMessageBox('No hay nombres para guardar');
+        return;
+    }
+    
+    runners = window.tempExcelNames.map((name, index) => ({
+        id: index + 1,
+        name: name
+    }));
+    
+    currentRunnerIndex = 0;
+    currentRound = 1;
+    recordedLaps = [];
+    roundLaps = [];
+    
+    document.getElementById('excel-modal').style.display = 'none';
+    document.getElementById('app-container').style.display = 'flex';
+    
+    saveLaps();
+    setupCamera();
+    createButtons();
+    statusMessage.textContent = `Ronda 1 - Listo: ${runners[0].name}`;
+    displayRunnersList();
+    
+    // Limpiar datos temporales
+    window.tempExcelNames = null;
+}
+
 // === SETUP ===
 function setupWithNames() {
     document.getElementById('setup-modal').style.display = 'none';
@@ -493,6 +594,7 @@ sensitivitySlider.oninput = e => {
 
 messageBoxOkButton.onclick = () => messageBox.style.display = 'none';
 
+// === EVENTOS PARA CONFIGURACIÓN ===
 document.getElementById('setup-with-names').onclick = setupWithNames;
 document.getElementById('setup-without-names').onclick = setupWithoutNames;
 document.getElementById('save-names').onclick = saveRunnerNames;
@@ -500,6 +602,18 @@ document.getElementById('cancel-names').onclick = () => {
     document.getElementById('names-modal').style.display = 'none';
     document.getElementById('setup-modal').style.display = 'flex';
 };
+
+// === EVENTOS PARA EXCEL ===
+document.getElementById('setup-with-excel').onclick = setupWithExcel;
+document.getElementById('process-excel').onclick = saveExcelNames;
+document.getElementById('cancel-excel').onclick = () => {
+    document.getElementById('excel-modal').style.display = 'none';
+    document.getElementById('setup-modal').style.display = 'flex';
+    window.tempExcelNames = null;
+};
+
+// Event listener para cuando se selecciona un archivo Excel
+document.getElementById('excel-file').addEventListener('change', processExcelFile);
 
 // === INICIO ===
 window.onload = () => {

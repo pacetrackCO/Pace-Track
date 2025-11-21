@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Cronómetro de Paso para Atletas</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <link rel="stylesheet" href="stylestimer.css">
     <link rel="stylesheet" href="logo-splash/stylesintro.css">
 </head>
@@ -19,10 +19,28 @@
     <div id="setup-modal" class="modal">
         <div class="modal-content">
             <h2>Configuración de Vueltas</h2>
-            <p>¿Desea agregar nombres a las vueltas?</p>
+            <p>¿Cómo desea configurar los nombres?</p>
             <div class="modal-buttons">
-                <button id="setup-with-names">Sí, con nombres</button>
-                <button id="setup-without-names">No, solo números</button>
+                <button id="setup-with-names">Ingresar manualmente</button>
+                <button id="setup-with-excel">Cargar desde Excel</button>
+                <button id="setup-without-names">Usar números</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para cargar Excel -->
+    <div id="excel-modal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <h2>Cargar Nombres desde Excel</h2>
+            <p>Seleccione un archivo Excel (.xlsx) con los nombres en la primera columna</p>
+            <input type="file" id="excel-file" accept=".xlsx, .xls" style="margin: 1rem 0; padding: 0.5rem; width: 100%;">
+            <div id="excel-preview" style="max-height: 200px; overflow-y: auto; margin: 1rem 0; text-align: left; display: none;">
+                <h4>Nombres detectados:</h4>
+                <ul id="names-list"></ul>
+            </div>
+            <div class="modal-buttons">
+                <button id="process-excel">Procesar Archivo</button>
+                <button id="cancel-excel">Cancelar</button>
             </div>
         </div>
     </div>
