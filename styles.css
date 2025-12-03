@@ -41,3 +41,17 @@ footer{background:var(--dark);padding:3rem 1rem;text-align:center;}
 @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
 @keyframes engine{0%{transform:scale(1)}20%{transform:scale(0.92)}40%{transform:scale(1.25) rotate(-4deg)}60%{transform:scale(1.08) rotate(4deg)}100%{transform:scale(1)}}
 @media(max-width:768px){h1{font-size:2.8rem;}.heroes{padding-top:8rem;}.card h2{font-size:1.8rem;}}
+.header-image {
+    width: 100%;
+    height: auto;
+    max-width: 100%;
+    display: block;
+    object-fit: cover;        /* o 'contain' según prefieras */
+    object-position: center top;
+}
+
+/* Si usas <picture> con versión móvil, esto mejora aún más */
+picture {
+    display: block;
+    width: 100%;
+}
