@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cronómetro de Paso para Atletas - Control Remoto</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="stylestimer.css">
+    <link rel="stylesheet" href="logo-splash/stylesintro.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+    <!-- Botón flotante para abrir panel de control remoto -->
+<button id="quick-control-btn" class="quick-control-btn" onclick="toggleWebRTCPanel()">
+    <i class="fas fa-wifi"></i>
+</button>
+    <img id="logo" src="logo-splash/mi_logo.png" alt="Logo">
+    <script src="logo-splash/scriptsintro.js"></script>
+
+    <!-- Panel de Control Remoto WebRTC -->
+    <div id="webrtc-panel" class="webrtc-panel">
+        <div class="webrtc-header">
+            <h3><i class="fas fa-wifi"></i> Control Remoto</h3>
+            <button class="webrtc-close" onclick="toggleWebRTCPanel()">×</button>
+        </div>
+        
+        <div class="webrtc-status">
+            <div class="status-dot" id="connectionStatus"></div>
+            <span id="connectionText">Desconectado</span>
+        </div>
+        
+        <div class="webrtc-section">
+            <h4><i class="fas fa-id-card"></i> Tu ID</h4>
+            <div class="id-container">
+                <input type="text" id="myWebRTCId" readonly value="Generando...">
+                <button class="copy-btn" onclick="copyWebRTCId()">
+                    <i class="fas fa-copy"></i>
+                </button>
+            </div>
+            <button class="webrtc-btn share" onclick="shareWebRTCId()">
+                <i class="fas fa-share-alt"></i> Compartir ID
+            </button>
+        </div>
+        
+        <div class="webrtc-section">
+            <h4><i class="fas fa-link"></i> Conectar a Otro</h4>
+            <div class="connect-container">
+                <input type="text" id="remoteIdInput" placeholder="ID del otro dispositivo">
+                <button class="webrtc-btn connect" onclick="connectToRemote()">
+                    <i class="fas fa-plug"></i> Conectar
+                </button>
+            </div>
+        </div>
+        
+        <div class="webrtc-section" id="remoteControlSection" style="display: none;">
+            <h4><i class="fas fa-gamepad"></i> Control Remoto</h4>
+            <div class="control-buttons">
+                <button class="control-btn start" onclick="sendStartCommand()">
+                    <i class="fas fa-play"></i> Iniciar Cronómetro
+                </button>
+                <button class="control-btn stop" onclick="sendStopCommand()">
+                    <i class="fas fa-stop"></i> Detener Cronómetro
+                </button>
+                <button class="control-btn reset" onclick="sendResetCommand()">
+                    <i class="fas fa-redo"></i> Reiniciar Todo
+                </button>
+            </div>
+        </div>
+        
+        <button class="webrtc-btn toggle" onclick="toggleWebRTCPanel()">
+            <i class="fas fa-exchange-alt"></i> Control Remoto
+        </button>
+    </div>
+
+    <div id="app-container">
+        <div id="video-container">
+            <video id="video" autoplay playsinline></video>
+            <canvas id="overlay-canvas"></canvas>
+        </div>
+        <div id="timer-display">00:00.000</div>
+        <div id="controls">
+            <button id="reset-button">Reiniciar</button>
+        </div>
+        <div id="status-message">Iniciando cámara...</div>
+        <div id="sensitivity-slider-container">
+            <span>Sensibilidad:</span>
+            <input type="range" id="sensitivity-slider" min="1" max="1000" value="200">
+        </div>
+        <div id="laps-container" style="display:none;">
+            <h3>Lista de Tiempos</h3>
+            <ul id="laps-list">
+            </ul>
+        </div>
+    </div>
+    <div id="message-box" class="message-box">
+        <p id="message-content"></p>
+        <button id="message-box-ok">OK</button>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="scripsttimer.js"></script>
+</body>
+</html>
