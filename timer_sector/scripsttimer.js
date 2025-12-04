@@ -190,48 +190,75 @@ class WebRTCHandler {
             }
         };
     }
-
-    async sendSignal(data) {
-        if (!this.targetId) {
-            console.warn("No targetId defined");
-            return;
-        }
-
-        try {
-            await fetch("/.netlify/functions/signal", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    id: this.myId,
-                    target: this.targetId,
-                    data: data
-                })
-            });
-        } catch (error) {
-            console.error("Error sending signal:", error);
-        }
+async sendSignal(data) {
+    if (!this.targetId) {
+        console.warn("⚠️ No targetId defined");
+        return;
     }
 
-    async startPolling() {
-        const poll = async () => {
-            try {
-                const response = await fetch(`/.netlify/functions/poll?id=${this.myId}`);
-                const messages = await response.json();
-                
+    console.log(`📤 Enviando señal a ${this.targetId}:`, data.type);
+
+    try {
+        const response = await fetch("/.netlify/functions/signal", {
+            method: "POST",
+            headers: { 
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            },
+            body: JSON.stringify({
+                id: this.myId,
+                target: this.targetId,
+                data: data
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        console.log("✅ Señal enviada:", result);
+
+    } catch (error) {
+        console.error("❌ Error enviando señal:", error);
+        showMessageBox("Error de red. Revisa tu conexión.");
+    }
+}
+
+async startPolling() {
+    const poll = async () => {
+        try {
+            const url = `/.netlify/functions/poll?id=${this.myId}`;
+            console.log("🔄 Polling:", url);
+            
+            const response = await fetch(url, {
+                headers: { "Accept": "application/json" }
+            });
+
+            if (!response.ok) {
+                throw new Error(`Polling error: ${response.status}`);
+            }
+
+            const messages = await response.json();
+            
+            if (messages.length > 0) {
+                console.log(`📨 ${messages.length} mensaje(s) recibido(s)`);
                 for (const msg of messages) {
                     await this.handleSignal(msg.from, msg.data);
                 }
-            } catch (error) {
-                console.error("Error in polling:", error);
             }
-            
-            if (this.pollInterval) clearTimeout(this.pollInterval);
-            this.pollInterval = setTimeout(poll, 1000);
-        };
 
-        poll();
-    }
+        } catch (error) {
+            console.error("❌ Error en polling:", error);
+        }
 
+        // Continuar polling
+        if (this.pollInterval) clearTimeout(this.pollInterval);
+        this.pollInterval = setTimeout(poll, 1000);
+    };
+
+    poll();
+}
     async handleSignal(from, data) {
         if (!this.targetId) {
             this.targetId = from;
