@@ -1,10 +1,10 @@
-# netlify.toml - Configuración para sitio HTML/CSS/JS estático
+# netlify.toml - Configuración corregida
 [build]
-  command = ""          # No ejecutar build
-  publish = "."         # Carpeta donde está tu index.html
+  publish = "public"
+  functions = "netlify/functions"
 
 [functions]
-  directory = "netlify/functions"  # Solo si usas funciones serverless
+  directory = "netlify/functions"
 
 [[redirects]]
   from = "/timer"
@@ -12,7 +12,7 @@
   status = 200
 
 [[redirects]]
-  from = "/timer loop"
+  from = "/timer-loop"
   to = "/timer_loop/timer_loop.html"
   status = 200
 
@@ -21,22 +21,8 @@
   to = "/Construccion/Construccion.html"
   status = 200
 
-[build]
-  publish = "public"
-  functions = "netlify/functions"
-
+# Redirección por defecto - DEBE IR AL FINAL
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
-
-[[headers]]
-  for = "/*"
-  [headers.values]
-    Access-Control-Allow-Origin = "*"
-
-[[headers]]
-  for = "/.netlify/functions/*"
-  [headers.values]
-    Access-Control-Allow-Origin = "*"
-    Access-Control-Allow-Headers = "*"
