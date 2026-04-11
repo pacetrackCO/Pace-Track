@@ -355,3 +355,60 @@ footer {
   .grid { grid-template-columns: 1fr; }
   .item { padding: 1.5rem; }
 }
+
+/* Additional responsive breakpoints */
+@media (max-width: 480px) {
+  h1 {
+    font-size: 2.2rem;
+    letter-spacing: 4px;
+  }
+  .tagline {
+    font-size: 1.2rem;
+  }
+  header {
+    padding: 2rem 1rem;
+    clip-path: none;
+  }
+  .grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  .item {
+    padding: 1rem;
+  }
+  .contact form {
+    gap: 1rem;
+  }
+  .contact input, .contact textarea {
+    padding: 0.8rem;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+  }
+  .item {
+    padding: 1.5rem;
+  }
+  h2 {
+    font-size: 2.3rem;
+  }
+}
+
+@media (min-width: 1025px) {
+  .grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 3rem;
+  }
+  .item {
+    padding: 2.5rem;
+  }
+  h1 {
+    font-size: 4rem;
+  }
+  h2 {
+    font-size: 3rem;
+  }
+}

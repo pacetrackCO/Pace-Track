@@ -3,78 +3,78 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cronómetro de Paso para Atletas - Control Remoto</title>
+    <title>Cronómetro de Paso para Atletas</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="stylestimer.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="stylesSector.css">
     <link rel="stylesheet" href="logo-splash/stylesintro.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 
 <body>
-    <!-- Botón flotante para abrir panel de control remoto -->
-<button id="quick-control-btn" class="quick-control-btn" onclick="toggleWebRTCPanel()">
-    <i class="fas fa-wifi"></i>
-</button>
     <img id="logo" src="logo-splash/mi_logo.png" alt="Logo">
     <script src="logo-splash/scriptsintro.js"></script>
 
-    <!-- Panel de Control Remoto WebRTC -->
-    <div id="webrtc-panel" class="webrtc-panel">
-        <div class="webrtc-header">
-            <h3><i class="fas fa-wifi"></i> Control Remoto</h3>
-            <button class="webrtc-close" onclick="toggleWebRTCPanel()">×</button>
-        </div>
-        
-        <div class="webrtc-status">
-            <div class="status-dot" id="connectionStatus"></div>
-            <span id="connectionText">Desconectado</span>
-        </div>
-        
-        <div class="webrtc-section">
-            <h4><i class="fas fa-id-card"></i> Tu ID</h4>
-            <div class="id-container">
-                <input type="text" id="myWebRTCId" readonly value="Generando...">
-                <button class="copy-btn" onclick="copyWebRTCId()">
-                    <i class="fas fa-copy"></i>
-                </button>
-            </div>
-            <button class="webrtc-btn share" onclick="shareWebRTCId()">
-                <i class="fas fa-share-alt"></i> Compartir ID
-            </button>
-        </div>
-        
-        <div class="webrtc-section">
-            <h4><i class="fas fa-link"></i> Conectar a Otro</h4>
-            <div class="connect-container">
-                <input type="text" id="remoteIdInput" placeholder="ID del otro dispositivo">
-                <button class="webrtc-btn connect" onclick="connectToRemote()">
-                    <i class="fas fa-plug"></i> Conectar
-                </button>
+    <!-- Modal para configuración de nombres -->
+    <div id="setup-modal" class="modal">
+        <div class="modal-content">
+            <h2>Configuración de Vueltas</h2>
+            <p>¿Cómo desea configurar los nombres?</p>
+            <div class="modal-buttons">
+                <button id="setup-with-names">Ingresar manualmente</button>
+                <button id="setup-with-excel">Cargar desde Excel</button>
+                <button id="setup-without-names">Usar números</button>
             </div>
         </div>
-        
-        <div class="webrtc-section" id="remoteControlSection" style="display: none;">
-            <h4><i class="fas fa-gamepad"></i> Control Remoto</h4>
-            <div class="control-buttons">
-                <button class="control-btn start" onclick="sendStartCommand()">
-                    <i class="fas fa-play"></i> Iniciar Cronómetro
-                </button>
-                <button class="control-btn stop" onclick="sendStopCommand()">
-                    <i class="fas fa-stop"></i> Detener Cronómetro
-                </button>
-                <button class="control-btn reset" onclick="sendResetCommand()">
-                    <i class="fas fa-redo"></i> Reiniciar Todo
-                </button>
-            </div>
-        </div>
-        
-        <button class="webrtc-btn toggle" onclick="toggleWebRTCPanel()">
-            <i class="fas fa-exchange-alt"></i> Control Remoto
-        </button>
     </div>
 
-    <div id="app-container">
+    <!-- Modal para cargar Excel -->
+    <div id="excel-modal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <h2>Cargar Nombres desde Excel</h2>
+            <p>Seleccione un archivo Excel (.xlsx) con los nombres en la primera columna</p>
+            <input type="file" id="excel-file" accept=".xlsx, .xls" style="margin: 1rem 0; padding: 0.5rem; width: 100%;">
+            <div id="excel-preview" style="max-height: 200px; overflow-y: auto; margin: 1rem 0; text-align: left; display: none;">
+                <h4>Nombres detectados:</h4>
+                <ul id="names-list"></ul>
+            </div>
+            <div class="modal-buttons">
+                <button id="process-excel">Procesar Archivo</button>
+                <button id="cancel-excel">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para ingresar nombres -->
+    <div id="names-modal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <h2>Ingresar Nombres de Vueltas</h2>
+            <div id="names-input-container">
+                <!-- Los inputs se generarán dinámicamente -->
+            </div>
+            <div class="modal-buttons">
+                <button id="save-names">Guardar Nombres</button>
+                <button id="cancel-names">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para configuración después de completar vueltas -->
+    <div id="repeat-modal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <h2>Configuración de Vueltas</h2>
+            <p>Se han completado todas las vueltas con nombre. ¿Qué desea hacer?</p>
+            <div class="modal-buttons">
+                <button id="repeat-names">Repetir nombres</button>
+                <button id="continue-numbers">Continuar con números</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-container" style="display:none;">
         <div id="video-container">
             <video id="video" autoplay playsinline></video>
             <canvas id="overlay-canvas"></canvas>
@@ -88,17 +88,34 @@
             <span>Sensibilidad:</span>
             <input type="range" id="sensitivity-slider" min="1" max="1000" value="200">
         </div>
-        <div id="laps-container" style="display:none;">
-            <h3>Lista de Tiempos</h3>
-            <ul id="laps-list">
-            </ul>
+
+        <!-- Panel de control P2P (colapsable) -->
+        <div id="p2p-panel">
+            <div id="p2p-header">
+                <span>📡 P2P <span id="p2p-role-indicator"></span></span>
+                <button id="p2p-toggle">▼</button>
+            </div>
+            <div id="p2p-content">
+                <input type="text" id="p2p-room-id" placeholder="ID de sala">
+                <div style="display: flex; gap: 0.5rem;">
+                    <button id="p2p-create" class="gradient-blue">Crear (salida)</button>
+                    <button id="p2p-join" class="gradient-green">Unirse (llegada)</button>
+                </div>
+                <p id="p2p-status">🔴 Desconectado</p>
+            </div>
+        </div>
+
+        <div id="laps-container">
+            <h3 id="laps-title">Lista de Tiempos</h3>
+            <ul id="laps-list"></ul>
         </div>
     </div>
+
     <div id="message-box" class="message-box">
         <p id="message-content"></p>
         <button id="message-box-ok">OK</button>
     </div>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="scripsttimer.js"></script>
+
+    <script src="scriptsSector.js"></script>
 </body>
 </html>

@@ -121,37 +121,40 @@
 </header>
 
 <main id="main" role="main">
+<main id="main" role="main">
     <!-- HERO SECTION con estructura semántica -->
     <section class="heroes" id="inicio" aria-labelledby="cronometros-titulo">
         <h2 id="cronometros-titulo" class="visually-hidden">Selección de Cronómetros PaceTrack</h2>
         <div class="card" itemscope itemtype="https://schema.org/SoftwareApplication">
+            <i class="fas fa-stopwatch card-icon" aria-hidden="true"></i>
             <h3 itemprop="name">PaceTrack Original</h3>
             <p itemprop="description">El cronómetro clásico. Arranca, para y guarda tus vueltas con precisión profesional.</p>
             <button class="btn" data-url="/timer/timer.html" aria-label="Abrir Cronómetro PaceTrack Original">INICIAR</button>
         </div>
         <div class="card" itemscope itemtype="https://schema.org/SoftwareApplication">
+            <i class="fas fa-redo card-icon" aria-hidden="true"></i>
             <h3 itemprop="name">PaceTrack Loop</h3>
             <p itemprop="description">Vueltas automáticas sin tocar el móvil. Ideal para entrenamientos continuos.</p>
             <button class="btn" data-url="/timer_loop/timer_loop.html" aria-label="Abrir Cronómetro PaceTrack Loop">LOOP</button>
         </div>
         <div class="card" itemscope itemtype="https://schema.org/SoftwareApplication">
+            <i class="fas fa-route card-icon" aria-hidden="true"></i>
             <h3 itemprop="name">PaceTrack Sector</h3>
             <p itemprop="description">Cronometra tus sectores con ayuda de dos dispositivos.</p>
             <button class="btn" data-url="/timer_sector/timer_sector.html" aria-label="Abrir Cronómetro PaceTrack Sector">SECTOR</button>
         </div>
-        <div class="card" itemscope itemtype="https://schema.org/SoftwareApplication">
-            <h3 itemprop="name">PaceTrack Server</h3>
-            <p itemprop="description">Exporta a PDF y sincroniza con PC. Funcionalidades avanzadas para profesionales.</p>
-            <button class="btn" data-url="Construccion/Construccion.html" aria-label="Abrir PaceTrack Server">SERVER</button>
-        </div>
     </section>
-    <main id="main" role="main">
-    <section class="heroes" id="inicio" aria-labelledby="cronometros-titulo">
-        <h2 id="cronometros-titulo" class="visually-hidden">Selección de Cronómetros PaceTrack</h2>
-        <div class="card" itemscope itemtype="https://schema.org/SoftwareApplication">
-            <h3 itemprop="name">PaceTrack Events</h3>
-            <p itemprop="description">Eventos en los que se usa PaceTrack.</p>
-            <button class="btn" data-url="events/events.html" aria-label="Abrir PaceTrack Server">EVENTS</button>
+
+    <!-- EVENTS SECTION -->
+    <section class="events-section" id="events" aria-labelledby="events-titulo">
+        <h2 id="events-titulo">Eventos y Comunidad</h2>
+        <div class="events-grid">
+            <div class="card" itemscope itemtype="https://schema.org/SoftwareApplication">
+                <i class="fas fa-calendar-alt card-icon" aria-hidden="true"></i>
+                <h3 itemprop="name">PaceTrack Events</h3>
+                <p itemprop="description">Eventos en los que se usa PaceTrack. Únete a la comunidad deportiva.</p>
+                <button class="btn" data-url="events/events.html" aria-label="Abrir PaceTrack Events">EXPLORAR</button>
+            </div>
         </div>
     </section>
 
@@ -210,24 +213,9 @@
                 <p><time datetime="2025-10-14" itemprop="datePublished">14/10/2025</time> <span itemprop="description">Descarga tus tiempos en formato PDF profesional.</span></p>
             </div>
             <div class="item" itemscope itemtype="https://schema.org/Update">
-                <h3 itemprop="name">PaceTrack Server</h3>
-                <p><time datetime="2025-09-29" itemprop="datePublished">29/09/2025</span> <span itemprop="description">Sincronización avanzada con ordenador (En proceso).</span></p>
+                <h3 itemprop="name">PaceTrack Sector</h3>
+                <p><time datetime="2026-04-11" itemprop="datePublished">11/04/2026</time> <span itemprop="description">Nuevo modo Sector para cronometrar con dos dispositivos.</span></p>
             </div>
-            <div class="item" itemscope itemtype="https://schema.org/Update">
-                <h3 itemprop="name">Optimización Móvil</h3>
-                <p><time datetime="2025-09-15" itemprop="datePublished">15/09/2025</time> <span itemprop="description">Completamente optimizado para iOS y Android.</span></p>
-            </div>
-        </div>
-    </section>
-    <!--PACETRACK para eventos-->
-        <section class="news" id="novedades" aria-labelledby="novedades-titulo">
-        <h2 id="novedades-titulo">PaceTrack en eventos</h2>
-        <div class="grid">
-            <div class="item" itemscope itemtype="https://schema.org/Update">
-                <h3 itemprop="name">¿Interesado en usar Pacetrack en tu proximo evento?</h3>
-                <p><span itemprop="description">Contacta para obetener más informacion.</span></p>
-            </div>
-
         </div>
     </section>
 

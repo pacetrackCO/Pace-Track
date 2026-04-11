@@ -48,18 +48,37 @@ document.querySelectorAll('.btn').forEach(btn => {
 
 // TEMA CLARO/OSCURO
 const toggle = document.getElementById('themeToggle');
-toggle.addEventListener('click', () => {
-    const isDark = document.body.style.background === 'var(--dark)';
-    document.body.style.background = isDark ? 'var(--light)' : 'var(--dark)';
-    document.body.style.color = isDark ? '#000' : 'var(--light)';
-    toggle.textContent = isDark ? 'SUN' : 'MOON';
-    localStorage.setItem('theme', isDark ? 'light' : 'dark');
-});
-if (localStorage.getItem('theme') === 'light') {
-    document.body.style.background = 'var(--light)';
-    document.body.style.color = '#000';
-    toggle.textContent = 'SUN';
+function applyTheme(theme) {
+    if (theme === 'light') {
+        document.documentElement.style.setProperty('--dark', '#f8fafc');
+        document.documentElement.style.setProperty('--light', '#0f172a');
+        document.documentElement.style.setProperty('--text-secondary', '#64748b');
+        document.documentElement.style.setProperty('--card-bg', 'rgba(0, 0, 0, 0.06)');
+        document.documentElement.style.setProperty('--hover-bg', 'rgba(255, 69, 0, 0.1)');
+        document.documentElement.style.setProperty('--border', 'rgba(255, 69, 0, 0.3)');
+        document.body.style.background = 'var(--dark)';
+        document.body.style.color = 'var(--light)';
+        toggle.innerHTML = '<i class="fas fa-sun"></i>';
+    } else {
+        document.documentElement.style.setProperty('--dark', '#0f172a');
+        document.documentElement.style.setProperty('--light', '#f8fafc');
+        document.documentElement.style.setProperty('--text-secondary', '#cbd5e1');
+        document.documentElement.style.setProperty('--card-bg', 'rgba(255, 255, 255, 0.06)');
+        document.documentElement.style.setProperty('--hover-bg', 'rgba(255, 69, 0, 0.1)');
+        document.documentElement.style.setProperty('--border', 'rgba(255, 69, 0, 0.2)');
+        document.body.style.background = 'var(--dark)';
+        document.body.style.color = 'var(--light)';
+        toggle.innerHTML = '<i class="fas fa-moon"></i>';
+    }
 }
+toggle.addEventListener('click', () => {
+    const currentTheme = localStorage.getItem('theme') || 'dark';
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('theme', newTheme);
+    applyTheme(newTheme);
+});
+const savedTheme = localStorage.getItem('theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+applyTheme(savedTheme);
 
 // TRADUCTOR
 function googleTranslateElementInit() {

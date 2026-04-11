@@ -367,3 +367,57 @@ button:active {
         width: 120px;
     }
 }
+
+/* Additional responsive breakpoints */
+@media (max-width: 480px) {
+    #timer-display {
+        font-size: 2rem;
+        padding: 0.8rem 1.5rem;
+    }
+    #status-message {
+        font-size: 0.8rem;
+        padding: 0.4rem 0.8rem;
+        width: 95%;
+    }
+    #sensitivity-slider-container {
+        bottom: 3rem;
+        padding: 0.5rem 1rem;
+    }
+    #controls {
+        bottom: 0.5rem;
+        gap: 0.5rem;
+    }
+    button {
+        padding: 0.6rem 1.5rem;
+        font-size: 0.9rem;
+    }
+    #laps-container {
+        width: 110px;
+        right: 0.5rem;
+        top: 2rem;
+        font-size: 0.8rem;
+    }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+    #timer-display {
+        font-size: 3rem;
+    }
+    #laps-container {
+        width: 160px;
+    }
+}
+
+@media (min-width: 1025px) {
+    #timer-display {
+        font-size: 4.5rem;
+        padding: 1.5rem 3rem;
+    }
+    #status-message {
+        font-size: 1.2rem;
+    }
+    #laps-container {
+        width: 200px;
+        top: 8rem;
+    }
+}
