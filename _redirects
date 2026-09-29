@@ -1,1 +1,6 @@
-/timer    /timer/timer.html   200
+# Redirecciones Netlify (mirror de netlify.toml para `netlify dev`)
+/timer          /timer/timer.html              200
+/timer-loop     /timer_loop/timer_loop.html    200
+/timer-sector   /timer_sector/timer_sector.html 200
+/eventos        /events/events.html            200
+/construccion   /Construccion/construccion.html 200

@@ -14,8 +14,27 @@ const hiddenCanvas = document.createElement('canvas');
 const hiddenCtx = hiddenCanvas.getContext('2d', { willReadFrequently: true });
 const overlayCtx = overlayCanvas.getContext('2d');
 
-const beep = new Audio('Beep.mp3');
+const beep = new Audio('beep.mp3');
 beep.preload = 'auto';
+let audioUnlocked = false;
+function unlockAudio() {
+    if (audioUnlocked) return;
+    audioUnlocked = true;
+    try {
+        const p = beep.play();
+        if (p && p.catch) p.catch(() => {});
+        beep.pause();
+        beep.currentTime = 0;
+    } catch (e) {}
+}
+document.addEventListener('pointerdown', unlockAudio, { once: true });
+function playBeep() {
+    try {
+        beep.currentTime = 0;
+        const p = beep.play();
+        if (p && p.catch) p.catch(() => {});
+    } catch (e) {}
+}
 
 // === ESTADO ===
 let runners = [];
@@ -53,25 +72,46 @@ function showMessageBox(msg) {
     messageBox.style.display = 'block';
 }
 
+// Claves con espacio de nombres para no chocar con loop/sector/PC en el mismo dominio
+const LS_KEYS = {
+    laps: 'pt_timer_recordedLaps',
+    runners: 'pt_timer_runners',
+    index: 'pt_timer_currentRunnerIndex',
+    round: 'pt_timer_currentRound',
+    roundLaps: 'pt_timer_roundLaps'
+};
 function saveLaps() {
-    localStorage.setItem('recordedLaps', JSON.stringify(recordedLaps));
-    localStorage.setItem('runners', JSON.stringify(runners));
-    localStorage.setItem('currentRunnerIndex', currentRunnerIndex);
-    localStorage.setItem('currentRound', currentRound);
-    localStorage.setItem('roundLaps', JSON.stringify(roundLaps)); // NUEVO: Guardar tiempos de ronda actual
+    try {
+        localStorage.setItem(LS_KEYS.laps, JSON.stringify(recordedLaps));
+        localStorage.setItem(LS_KEYS.runners, JSON.stringify(runners));
+        localStorage.setItem(LS_KEYS.index, String(currentRunnerIndex));
+        localStorage.setItem(LS_KEYS.round, String(currentRound));
+        localStorage.setItem(LS_KEYS.roundLaps, JSON.stringify(roundLaps));
+    } catch (e) {}
 }
 
 function loadLaps() {
-    const data = localStorage.getItem('recordedLaps');
-    if (data) recordedLaps = JSON.parse(data);
-    const r = localStorage.getItem('runners');
-    if (r) runners = JSON.parse(r);
-    const i = localStorage.getItem('currentRunnerIndex');
-    if (i) currentRunnerIndex = parseInt(i);
-    const round = localStorage.getItem('currentRound');
-    if (round) currentRound = parseInt(round);
-    const rl = localStorage.getItem('roundLaps');
-    if (rl) roundLaps = JSON.parse(rl);
+    try {
+        // Migrar claves antiguas sin prefijo si existen
+        const legacy = localStorage.getItem('recordedLaps');
+        if (legacy && !localStorage.getItem(LS_KEYS.laps)) {
+            localStorage.setItem(LS_KEYS.laps, legacy);
+            const lr = localStorage.getItem('runners'); if (lr) localStorage.setItem(LS_KEYS.runners, lr);
+            const li = localStorage.getItem('currentRunnerIndex'); if (li) localStorage.setItem(LS_KEYS.index, li);
+            const lro = localStorage.getItem('currentRound'); if (lro) localStorage.setItem(LS_KEYS.round, lro);
+            const lrl = localStorage.getItem('roundLaps'); if (lrl) localStorage.setItem(LS_KEYS.roundLaps, lrl);
+        }
+        const data = localStorage.getItem(LS_KEYS.laps);
+        if (data) recordedLaps = JSON.parse(data);
+        const r = localStorage.getItem(LS_KEYS.runners);
+        if (r) runners = JSON.parse(r);
+        const i = localStorage.getItem(LS_KEYS.index);
+        if (i !== null) currentRunnerIndex = parseInt(i) || 0;
+        const round = localStorage.getItem(LS_KEYS.round);
+        if (round !== null) currentRound = parseInt(round) || 1;
+        const rl = localStorage.getItem(LS_KEYS.roundLaps);
+        if (rl) roundLaps = JSON.parse(rl);
+    } catch (e) {}
     displayLaps();
 }
 
@@ -87,12 +127,10 @@ function displayRunnersList() {
     // Mostrar todos los corredores, incluso los que aún no han pasado
     runners.forEach((runner, index) => {
         const li = document.createElement('li');
-        
+
         // Buscar si este corredor ya tiene un tiempo registrado EN LA RONDA ACTUAL
-        const lapRecord = roundLaps.find(lap => 
-            lap.runnerName === runner.name && 
-            roundLaps.indexOf(lap) % runners.length === index
-        );
+        // Se busca por índice (no por nombre) para soportar nombres duplicados
+        const lapRecord = roundLaps.find(lap => lap.runnerIndex === index);
         
         if (lapRecord) {
             // Ya pasó - mostrar tiempo
@@ -361,7 +399,8 @@ dl.id = 'download-pdf';
 dl.textContent = 'Descargar PDF';
 dl.className = 'gradient-purple';
 dl.onclick = () => {
-    if (recordedLaps.length === 0) return showMessageBox('No hay tiempos');
+    if (recordedLaps.length === 0 && roundLaps.length === 0) return showMessageBox('No hay tiempos');
+    if (!window.jspdf || !window.jspdf.jsPDF) return showMessageBox('PDF no disponible sin conexión. Revisa tu internet y recarga.');
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     
@@ -495,7 +534,7 @@ function detectMovement() {
             calibrationSamples.push(norm);
         } else if (!cooldownActive && timerState !== 'paused' && norm > detectionThreshold && (performance.now() - lastDetectionTime) > detectionCooldown) {
             lastDetectionTime = performance.now();
-            beep.currentTime = 0; beep.play();
+            playBeep();
             drawLine('lime', true);
             vibrate(200);
 
@@ -515,7 +554,7 @@ function detectMovement() {
                     drawLine('yellow', true);
                 } else {
                     // VUELTA VÁLIDA - Guardar en roundLaps (ronda actual)
-                    roundLaps.push({ time: elapsed, runnerName: runner.name });
+                    roundLaps.push({ time: elapsed, runnerName: runner.name, runnerIndex: currentRunnerIndex });
                     saveLaps();
 
                     // === AVANZAR CORREDOR ===
@@ -579,11 +618,20 @@ function detectMovement() {
 }
 
 // === EVENTOS ===
+function stopCameraTracks() {
+    try {
+        const s = video && video.srcObject;
+        if (s && s.getTracks) s.getTracks().forEach(t => t.stop());
+        if (video) video.srcObject = null;
+    } catch (e) {}
+}
 resetButton.onclick = () => {
-    // 1. Limpiar TODO el localStorage
-    localStorage.clear();
-
+    // 1. Limpiar SOLO las claves de este cronómetro (no todo el localStorage: tema, etc.)
+    try {
+        Object.values(LS_KEYS).forEach(k => localStorage.removeItem(k));
+    } catch (e) {}
     // 2. Recargar la página (es lo más limpio y seguro)
+    stopCameraTracks();
     location.reload();
 };
 
@@ -616,22 +664,24 @@ document.getElementById('cancel-excel').onclick = () => {
 document.getElementById('excel-file').addEventListener('change', processExcelFile);
 
 // === INICIO ===
+function bootApp() {
+    loadLaps();
+    if (runners.length > 0) {
+        document.getElementById('app-container').style.display = 'flex';
+        setupCamera();
+        createButtons();
+        statusMessage.textContent = `Ronda ${currentRound} - Listo: ${runners[currentRunnerIndex].name}`;
+        // MOSTRAR LISTA INMEDIATAMENTE AL CARGAR
+        displayRunnersList();
+    } else {
+        document.getElementById('setup-modal').style.display = 'flex';
+    }
+}
 window.onload = () => {
     const script = document.createElement('script');
     script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-    script.onload = () => {
-        loadLaps();
-        if (runners.length > 0) {
-            document.getElementById('app-container').style.display = 'flex';
-            setupCamera();
-            createButtons();
-            statusMessage.textContent = `Ronda ${currentRound} - Listo: ${runners[currentRunnerIndex].name}`;
-            // MOSTRAR LISTA INMEDIATAMENTE AL CARGAR
-            displayRunnersList();
-        } else {
-            document.getElementById('setup-modal').style.display = 'flex';
-        }
-    };
+    script.onload = bootApp;
+    script.onerror = bootApp; // la app funciona sin PDF; el botón avisará
     document.head.appendChild(script);
 };
 

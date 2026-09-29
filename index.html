@@ -18,7 +18,7 @@
     <!-- Open Graph optimizado -->
     <meta property="og:title" content="PaceTrack ⏱️ | Cronómetro Profesional para Deportes de Velocidad">
     <meta property="og:description" content="Cronómetro online con precisión de milisegundos para pumptrack, velódromo y atletismo. Gratuito y optimizado para móvil.">
-    <meta property="og:image" content="https://pacetrack.es/images/HEADER.png">
+    <meta property="og:image" content="https://pacetrack.es/Images/HEADER.png">
     <meta property="og:image:alt" content="PaceTrack - Cronómetro Profesional">
     <meta property="og:url" content="https://pacetrack.es">
     <meta property="og:type" content="website">
@@ -29,13 +29,13 @@
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="PaceTrack ⏱️ | Cronómetro Profesional">
     <meta name="twitter:description" content="Cronómetro online con precisión de milisegundos para deportes de velocidad">
-    <meta name="twitter:image" content="https://pacetrack.es/images/mi_logo.png">
+    <meta name="twitter:image" content="https://pacetrack.es/Images/mi_logo.png">
     
     <!-- Canonical -->
     <link rel="canonical" href="https://pacetrack.es">
     
     <!-- Favicon y iconos múltiples -->
-    <link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="Images/apple-touch-icon.png">
     <link rel="icon" href="Images/favicon.png" type="image/png">
     
     <!-- Preconexiones críticas -->
@@ -69,7 +69,7 @@
             "name": "PaceTrack",
             "url": "https://pacetrack.es"
         },
-        "screenshot": "https://pacetrack.es/images/mi_logo.png",
+        "screenshot": "https://pacetrack.es/Images/mi_logo.png",
         "featureList": [
             "Precisión milisegundos",
             "Cronómetro para pumptrack",
@@ -108,19 +108,19 @@
 
 <!-- Navegación accesible -->
 <nav aria-label="Navegación principal">
+    <button id="themeToggle" aria-label="Cambiar entre tema claro y oscuro"><i class="fas fa-moon" aria-hidden="true"></i></button>
     <div id="google_translate_element" class="google-translate" aria-label="Selector de idioma"></div>
 </nav>
 
 <header role="banner">
 <!-- Cabecera con imagen de ancho completo -->
 <div class="header-container" role="banner">
-    <img src="images/HEADER.png" alt="PaceTrack - Cronómetro Profesional para Deportes de Velocidad" class="header-image" itemprop="image" width="1000">
+    <img src="Images/HEADER.png" alt="PaceTrack - Cronómetro Profesional para Deportes de Velocidad" class="header-image" itemprop="image">
     <div class="header-content">
     </div>
 </div>
 </header>
 
-<main id="main" role="main">
 <main id="main" role="main">
     <!-- HERO SECTION con estructura semántica -->
     <section class="heroes" id="inicio" aria-labelledby="cronometros-titulo">
@@ -129,19 +129,19 @@
             <i class="fas fa-stopwatch card-icon" aria-hidden="true"></i>
             <h3 itemprop="name">PaceTrack Original</h3>
             <p itemprop="description">El cronómetro clásico. Arranca, para y guarda tus vueltas con precisión profesional.</p>
-            <button class="btn" data-url="/timer/timer.html" aria-label="Abrir Cronómetro PaceTrack Original">INICIAR</button>
+            <button class="btn" data-url="timer/timer.html" aria-label="Abrir Cronómetro PaceTrack Original">INICIAR</button>
         </div>
         <div class="card" itemscope itemtype="https://schema.org/SoftwareApplication">
             <i class="fas fa-redo card-icon" aria-hidden="true"></i>
             <h3 itemprop="name">PaceTrack Loop</h3>
             <p itemprop="description">Vueltas automáticas sin tocar el móvil. Ideal para entrenamientos continuos.</p>
-            <button class="btn" data-url="/timer_loop/timer_loop.html" aria-label="Abrir Cronómetro PaceTrack Loop">LOOP</button>
+            <button class="btn" data-url="timer_loop/timer_loop.html" aria-label="Abrir Cronómetro PaceTrack Loop">LOOP</button>
         </div>
         <div class="card" itemscope itemtype="https://schema.org/SoftwareApplication">
             <i class="fas fa-route card-icon" aria-hidden="true"></i>
             <h3 itemprop="name">PaceTrack Sector</h3>
             <p itemprop="description">Cronometra tus sectores con ayuda de dos dispositivos.</p>
-            <button class="btn" data-url="/timer_sector/timer_sector.html" aria-label="Abrir Cronómetro PaceTrack Sector">SECTOR</button>
+            <button class="btn" data-url="timer_sector/timer_sector.html" aria-label="Abrir Cronómetro PaceTrack Sector">SECTOR</button>
         </div>
     </section>
 
@@ -251,7 +251,7 @@
 </footer>
 
 <div id="notification" class="notification" role="alert" aria-live="polite"></div>
-<button id="backToTop" class="back-to-top" aria-label="Volver al inicio">UP</button>
+<button id="backToTop" class="back-to-top" aria-label="Volver al inicio">↑</button>
 
 <!-- Scripts optimizados -->
 <script src="script.js" defer></script>

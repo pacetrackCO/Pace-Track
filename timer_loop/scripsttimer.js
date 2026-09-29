@@ -68,19 +68,24 @@ function displayLaps() {
 
 function saveLaps() {
   try {
-    if (recordedLaps.length % 10 === 0) {
-      localStorage.setItem('recordedLaps', JSON.stringify(recordedLaps));
-    }
+    localStorage.setItem('pt_loop_recordedLaps', JSON.stringify(recordedLaps));
   } catch (e) {
-    console.warn('⚠️ Límite de almacenamiento alcanzado');
+    console.warn('No se pudo guardar en localStorage');
   }
 }
 function loadLaps() {
-  const data = localStorage.getItem('recordedLaps');
-  if (data) {
-    recordedLaps = JSON.parse(data);
-    displayLaps();
-  }
+  try {
+    // Migrar clave antigua sin prefijo
+    const legacy = localStorage.getItem('recordedLaps');
+    if (legacy && !localStorage.getItem('pt_loop_recordedLaps')) {
+      localStorage.setItem('pt_loop_recordedLaps', legacy);
+    }
+    const data = localStorage.getItem('pt_loop_recordedLaps');
+    if (data) {
+      recordedLaps = JSON.parse(data);
+      displayLaps();
+    }
+  } catch (e) {}
 }
 
 // ==========================
@@ -124,12 +129,13 @@ function startCalibration() {
         : 0;
 
     detectionThreshold = Math.max(parseInt(sensitivitySlider.min), avgNoise * 2 || 50);
+    detectionThreshold = Math.min(parseInt(sensitivitySlider.max), detectionThreshold);
+    sensitivitySlider.value = detectionThreshold;
     isCalibrating = false;
 
     statusMessage.textContent = 'Calibración completa. Listo.';
     timerDisplay.style.color = '#e2e8f0';
     timerDisplay.textContent = '00:00.000';
-    showMessageBox(`✅ Calibración completada. Umbral: ${detectionThreshold.toFixed(0)}`);
   }, 3000);
 }
 
@@ -163,22 +169,29 @@ function detectMovement() {
   }
 
   hiddenCtx.drawImage(video, 0, 0, hiddenCanvas.width, hiddenCanvas.height);
-  const current = hiddenCtx.getImageData(0, 0, hiddenCanvas.width, hiddenCanvas.height);
+  // Muestrear SOLO la franja de detección (5% central), no el frame completo.
+  // El frame completo a 1080p colgaba los móviles de gama media.
+  const sx = Math.floor(hiddenCanvas.width * (detectionLineX - detectionLineThickness / 2));
+  const sw = Math.max(2, Math.floor(hiddenCanvas.width * detectionLineThickness));
+  const current = hiddenCtx.getImageData(sx, 0, sw, hiddenCanvas.height);
 
-  if (previousFrameData) {
+  if (previousFrameData && previousFrameData.data.length === current.data.length) {
     let diff = 0;
-    for (let i = 0; i < current.data.length; i += 4) {
-      diff += Math.abs(current.data[i] - previousFrameData.data[i]);
+    const d = current.data, p = previousFrameData.data;
+    for (let i = 0; i < d.length; i += 12) {
+      diff += Math.abs(d[i] - p[i]);
+      diff += Math.abs(d[i+1] - p[i+1]);
+      diff += Math.abs(d[i+2] - p[i+2]);
     }
-    const normalized = diff / (current.data.length / 4);
+    const pixels = d.length / 12;
+    const normalized = diff / pixels;
 
     if (isCalibrating) {
       calibrationSamples.push(normalized);
     } else {
       const now = performance.now();
-      const adjustedThreshold = detectionThreshold * 0.5;
 
-      if (normalized > adjustedThreshold && now - lastDetectionTime > detectionCooldown) {
+      if (normalized > detectionThreshold && now - lastDetectionTime > detectionCooldown) {
         lastDetectionTime = now;
         drawDetectionLine('lime', true);
 
@@ -222,12 +235,17 @@ sensitivitySlider.addEventListener('input', e => {
 });
 
 resetButton.addEventListener('click', () => {
+  try {
+    const s = video && video.srcObject;
+    if (s && s.getTracks) s.getTracks().forEach(t => t.stop());
+    if (video) video.srcObject = null;
+  } catch (e) {}
   timerState = 'stopped';
   startTime = 0;
   lastDisplayedTime = 0;
   previousFrameData = null;
   recordedLaps = [];
-  localStorage.removeItem('recordedLaps');
+  try { localStorage.removeItem('pt_loop_recordedLaps'); } catch (e) {}
   displayLaps();
   timerDisplay.textContent = '00:00.000';
   statusMessage.textContent = 'Reiniciando cámara...';

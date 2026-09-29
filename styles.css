@@ -269,8 +269,14 @@ h2 {
     border-radius: 10px;
     border: 1px solid var(--accent);
     background: rgba(255, 255, 255, 0.1);
-    color: #fff;
+    color: var(--light);
     font-size: 1rem;
+}
+
+.contact input::placeholder,
+.contact textarea::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.8;
 }
 
 .contact input:focus,
@@ -451,6 +457,21 @@ footer {
         color: var(--light);
         border-color: var(--accent);
     }
+}
+
+.header-container {
+    position: relative;
+    max-width: 1000px;
+    margin: 0 auto;
+    border-radius: 0 0 20px 20px;
+    overflow: hidden;
+    box-shadow: var(--glow);
+}
+
+.header-content {
+    position: absolute;
+    inset: auto 0 0 0;
+    padding: 1rem;
 }
 
 .header-image {

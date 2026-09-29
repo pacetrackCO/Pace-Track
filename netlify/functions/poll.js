@@ -1,84 +1,68 @@
 // netlify/functions/poll.js
+//
+// Lee y vacía la bandeja de señalización (par de signal.js).
+// Usa el mismo almacén compartido (Netlify Blobs) para que funcione entre instancias.
 
-// Objeto para almacenar mensajes (compartido con signal.js)
-const messages = {};
+const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Content-Type': 'application/json'
+};
 
-exports.handler = async (event, context) => {
-    // Habilitar CORS
-    const headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Content-Type': 'application/json'
-    };
+const memoryFallback = globalThis.__ptSignalMemory || (globalThis.__ptSignalMemory = {});
 
-    // Manejar preflight request
+function inboxKey(id) {
+    return `inbox:${String(id).toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 64)}`;
+}
+
+function getStoreSafe() {
+    try {
+        // eslint-disable-next-line global-require
+        const { getStore } = require('@netlify/blobs');
+        return getStore('webrtc-signal');
+    } catch (e) {
+        return null;
+    }
+}
+
+exports.handler = async (event) => {
     if (event.httpMethod === 'OPTIONS') {
-        return {
-            statusCode: 200,
-            headers,
-            body: ''
-        };
+        return { statusCode: 200, headers: corsHeaders, body: '' };
+    }
+    if (event.httpMethod !== 'GET') {
+        return { statusCode: 405, headers: corsHeaders, body: JSON.stringify({ error: 'Método no permitido' }) };
     }
 
     try {
-        // Verificar que sea GET
-        if (event.httpMethod !== 'GET') {
-            return {
-                statusCode: 405,
-                headers,
-                body: JSON.stringify({ error: 'Método no permitido' })
-            };
-        }
-
-        // Obtener ID de los query parameters
         const { id } = event.queryStringParameters || {};
-
-        console.log(`🔄 Polling para: ${id}`);
-
         if (!id) {
-            return {
-                statusCode: 400,
-                headers,
-                body: JSON.stringify({ error: 'Falta el parámetro id' })
-            };
+            return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'Falta el parámetro id' }) };
         }
 
-        // Obtener mensajes para este ID
-        const userMessages = messages[id] || [];
-        
-        // Limpiar mensajes después de leerlos
-        messages[id] = [];
-
-        // Limpiar mensajes antiguos periódicamente
+        const key = inboxKey(id);
+        const store = getStoreSafe();
         const now = Date.now();
-        for (const key in messages) {
-            if (messages[key] && Array.isArray(messages[key])) {
-                messages[key] = messages[key].filter(msg => 
-                    now - msg.timestamp < 30000
-                );
-                
-                // Eliminar array vacío
-                if (messages[key].length === 0) {
-                    delete messages[key];
-                }
+        let messages = [];
+
+        if (store) {
+            try {
+                const data = await store.get(key, { type: 'json' });
+                if (Array.isArray(data)) messages = data;
+                await store.delete(key);
+            } catch (e) {
+                messages = [];
             }
+        } else {
+            messages = Array.isArray(memoryFallback[key]) ? memoryFallback[key] : [];
+            memoryFallback[key] = [];
         }
 
-        console.log(`📨 Enviando ${userMessages.length} mensajes a ${id}`);
+        messages = messages.filter((m) => now - (m.timestamp || 0) < 60000);
 
-        return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify(userMessages)
-        };
-
+        return { statusCode: 200, headers: corsHeaders, body: JSON.stringify(messages) };
     } catch (error) {
-        console.error('❌ Error en poll:', error);
-        return {
-            statusCode: 500,
-            headers,
-            body: JSON.stringify({ error: error.message || 'Error interno' })
-        };
+        console.error('Error en poll:', error);
+        return { statusCode: 500, headers: corsHeaders, body: JSON.stringify({ error: error.message || 'Error interno' }) };
     }
 };

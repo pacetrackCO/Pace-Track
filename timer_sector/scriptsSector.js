@@ -17,6 +17,24 @@ const overlayCtx = overlayCanvas.getContext('2d');
 
 const beep = new Audio('Beep.mp3');
 beep.preload = 'auto';
+let audioUnlocked = false;
+document.addEventListener('pointerdown', () => {
+    if (audioUnlocked) return;
+    audioUnlocked = true;
+    try {
+        const p = beep.play();
+        if (p && p.catch) p.catch(() => {});
+        beep.pause();
+        beep.currentTime = 0;
+    } catch (e) {}
+}, { once: true });
+function playBeep() {
+    try {
+        beep.currentTime = 0;
+        const p = beep.play();
+        if (p && p.catch) p.catch(() => {});
+    } catch (e) {}
+}
 
 // === CONFIGURACIÓN FIREBASE ===
 const firebaseConfig = {
@@ -28,7 +46,7 @@ const firebaseConfig = {
     messagingSenderId: "788636325664",
     appId: "1:788636325664:web:1a383742bf31ab3f736945"
 };
-firebase.initializeApp(firebaseConfig);
+if (!firebase.apps || !firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 // === VARIABLES P2P ===
@@ -74,25 +92,45 @@ function showMessageBox(msg) {
     messageBox.style.display = 'block';
 }
 
+// Claves con espacio de nombres (no chocar con original/loop en el mismo dominio)
+const LS_KEYS = {
+    laps: 'pt_sector_recordedLaps',
+    runners: 'pt_sector_runners',
+    index: 'pt_sector_currentRunnerIndex',
+    round: 'pt_sector_currentRound',
+    roundLaps: 'pt_sector_roundLaps'
+};
 function saveLaps() {
-    localStorage.setItem('recordedLaps', JSON.stringify(recordedLaps));
-    localStorage.setItem('runners', JSON.stringify(runners));
-    localStorage.setItem('currentRunnerIndex', currentRunnerIndex);
-    localStorage.setItem('currentRound', currentRound);
-    localStorage.setItem('roundLaps', JSON.stringify(roundLaps));
+    try {
+        localStorage.setItem(LS_KEYS.laps, JSON.stringify(recordedLaps));
+        localStorage.setItem(LS_KEYS.runners, JSON.stringify(runners));
+        localStorage.setItem(LS_KEYS.index, String(currentRunnerIndex));
+        localStorage.setItem(LS_KEYS.round, String(currentRound));
+        localStorage.setItem(LS_KEYS.roundLaps, JSON.stringify(roundLaps));
+    } catch (e) {}
 }
 
 function loadLaps() {
-    const data = localStorage.getItem('recordedLaps');
-    if (data) recordedLaps = JSON.parse(data);
-    const r = localStorage.getItem('runners');
-    if (r) runners = JSON.parse(r);
-    const i = localStorage.getItem('currentRunnerIndex');
-    if (i) currentRunnerIndex = parseInt(i);
-    const round = localStorage.getItem('currentRound');
-    if (round) currentRound = parseInt(round);
-    const rl = localStorage.getItem('roundLaps');
-    if (rl) roundLaps = JSON.parse(rl);
+    try {
+        const legacy = localStorage.getItem('recordedLaps');
+        if (legacy && !localStorage.getItem(LS_KEYS.laps)) {
+            localStorage.setItem(LS_KEYS.laps, legacy);
+            const lr = localStorage.getItem('runners'); if (lr) localStorage.setItem(LS_KEYS.runners, lr);
+            const li = localStorage.getItem('currentRunnerIndex'); if (li) localStorage.setItem(LS_KEYS.index, li);
+            const lro = localStorage.getItem('currentRound'); if (lro) localStorage.setItem(LS_KEYS.round, lro);
+            const lrl = localStorage.getItem('roundLaps'); if (lrl) localStorage.setItem(LS_KEYS.roundLaps, lrl);
+        }
+        const data = localStorage.getItem(LS_KEYS.laps);
+        if (data) recordedLaps = JSON.parse(data);
+        const r = localStorage.getItem(LS_KEYS.runners);
+        if (r) runners = JSON.parse(r);
+        const i = localStorage.getItem(LS_KEYS.index);
+        if (i !== null) currentRunnerIndex = parseInt(i) || 0;
+        const round = localStorage.getItem(LS_KEYS.round);
+        if (round !== null) currentRound = parseInt(round) || 1;
+        const rl = localStorage.getItem(LS_KEYS.roundLaps);
+        if (rl) roundLaps = JSON.parse(rl);
+    } catch (e) {}
     displayLaps();
 }
 
@@ -119,7 +157,7 @@ function displayLaps() {
         lapsTitle.textContent = 'Tiempos de la ronda';
         runners.forEach((runner, index) => {
             const li = document.createElement('li');
-            const lapRecord = roundLaps.find(lap => lap.runnerName === runner.name);
+            const lapRecord = roundLaps.find(lap => lap.runnerIndex === index);
             if (lapRecord) {
                 li.innerHTML = `<span>${runner.name}:</span> <span>${formatTime(lapRecord.time)}</span>`;
                 li.style.color = '#10b981';
@@ -155,7 +193,7 @@ function displayLaps() {
         lapsTitle.textContent = 'Tiempos de la ronda';
         runners.forEach((runner, index) => {
             const li = document.createElement('li');
-            const lapRecord = roundLaps.find(lap => lap.runnerName === runner.name);
+            const lapRecord = roundLaps.find(lap => lap.runnerIndex === index);
             if (lapRecord) {
                 li.innerHTML = `<span>${runner.name}:</span> <span>${formatTime(lapRecord.time)}</span>`;
                 li.style.color = '#10b981';
@@ -368,7 +406,8 @@ function createButtons() {
     dl.textContent = 'Descargar PDF';
     dl.className = 'gradient-purple';
     dl.onclick = () => {
-        if (recordedLaps.length === 0) return showMessageBox('No hay tiempos');
+        if (recordedLaps.length === 0 && roundLaps.length === 0) return showMessageBox('No hay tiempos');
+        if (!window.jspdf || !window.jspdf.jsPDF) return showMessageBox('PDF no disponible sin conexión. Revisa tu internet y recarga.');
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
         doc.setFontSize(20);
@@ -444,7 +483,7 @@ function startCalibration() {
     timerDisplay.textContent = 'CALIBRANDO';
     timerDisplay.style.color = 'yellow';
     setTimeout(() => {
-        const avg = calibrationSamples.length ? calibrationSamples.reduce((a, b) => a + b) / calibrationSamples.length : 0;
+        const avg = calibrationSamples.length ? calibrationSamples.reduce((a, b) => a + b, 0) / calibrationSamples.length : 0;
         detectionThreshold = Math.max(60, Math.min(400, avg * 2 + 30));
         sensitivitySlider.value = detectionThreshold;
         isCalibrating = false;
@@ -664,7 +703,7 @@ function detectMovement() {
             calibrationSamples.push(norm);
         } else if (!cooldownActive && timerState !== 'paused' && norm > detectionThreshold && (performance.now() - lastDetectionTime) > detectionCooldown) {
             lastDetectionTime = performance.now();
-            beep.currentTime = 0; beep.play();
+            playBeep();
             drawLine('lime', true);
             vibrate(200);
 
@@ -683,7 +722,7 @@ function detectMovement() {
                         drawLine('yellow', true);
                     } else {
                         // Vuelta válida
-                        roundLaps.push({ time: elapsed, runnerName: runner.name });
+                        roundLaps.push({ time: elapsed, runnerName: runner.name, runnerIndex: currentRunnerIndex });
                         saveLaps();
 
                         // Enviar tiempo al dispositivo de salida
@@ -734,7 +773,7 @@ function detectMovement() {
                         statusMessage.textContent = 'Vuelta muy rápida';
                         drawLine('yellow', true);
                     } else {
-                        roundLaps.push({ time: elapsed, runnerName: runner.name });
+                        roundLaps.push({ time: elapsed, runnerName: runner.name, runnerIndex: currentRunnerIndex });
                         saveLaps();
 
                         const wasLast = currentRunnerIndex === runners.length - 1;
@@ -781,7 +820,13 @@ function detectMovement() {
 
 // === EVENTOS ===
 resetButton.onclick = () => {
-    localStorage.clear();
+    try {
+        Object.values(LS_KEYS).forEach(k => localStorage.removeItem(k));
+    } catch (e) {}
+    try {
+        const s = video && video.srcObject;
+        if (s && s.getTracks) s.getTracks().forEach(t => t.stop());
+    } catch (e) {}
     cleanupRTC();
     location.reload();
 };
@@ -839,7 +884,7 @@ p2pToggle.onclick = () => {
 window.onload = () => {
     const script = document.createElement('script');
     script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-    script.onload = () => {
+    const boot = () => {
         loadLaps();
         if (runners.length > 0) {
             document.getElementById('app-container').style.display = 'flex';
@@ -851,6 +896,8 @@ window.onload = () => {
             document.getElementById('setup-modal').style.display = 'flex';
         }
     };
+    script.onload = boot;
+    script.onerror = boot; // la app funciona sin PDF; el botón avisará
     document.head.appendChild(script);
 };
 

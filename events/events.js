@@ -1,91 +1,116 @@
-// PARTÍCULAS DE FUEGO (sutiles)
-const canvas = document.getElementById('particles');
-const ctx = canvas.getContext('2d');
-canvas.width = innerWidth;
-canvas.height = innerHeight;
-let particles = [];
+// PARTÍCULAS (sutiles, con respeto a reduced-motion y rendimiento)
+(function initParticles() {
+    const canvas = document.getElementById('particles');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) { canvas.style.display = 'none'; return; }
 
-class Particle {
-    constructor() {
-        this.x = Math.random() * canvas.width;
-        this.y = canvas.height + 10;
-        this.size = Math.random() * 3 + 1;
-        this.speedY = -(Math.random() * 2 + 0.5);
-        this.speedX = Math.random() * 1 - 0.5;
-        this.color = `hsl(20,100%,${60 + Math.random() * 20}%)`;
-    }
-    
-    update() {
-        this.y += this.speedY;
-        this.x += this.speedX;
-        if (this.y < -10) this.y = canvas.height + 10;
-    }
-    
-    draw() {
-        ctx.fillStyle = this.color;
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = this.color;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fill();
-    }
-}
+    let particles = [];
+    let running = true;
 
-function initParticles() {
-    particles = [];
-    for (let i = 0; i < 60; i++) {
-        particles.push(new Particle());
+    function resize() {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.width = Math.floor(innerWidth * dpr);
+        canvas.height = Math.floor(innerHeight * dpr);
+        canvas.style.width = innerWidth + 'px';
+        canvas.style.height = innerHeight + 'px';
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        init();
     }
-}
 
-function animateParticles() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    particles.forEach(p => {
-        p.update();
-        p.draw();
+    class Particle {
+        constructor() { this.reset(true); }
+        reset(initial) {
+            this.x = Math.random() * innerWidth;
+            this.y = initial ? Math.random() * innerHeight : innerHeight + 10;
+            this.size = Math.random() * 2.2 + 0.8;
+            this.speedY = -(Math.random() * 1.4 + 0.4);
+            this.speedX = Math.random() * 0.8 - 0.4;
+            this.color = `hsl(20,100%,${60 + Math.random() * 20}%)`;
+        }
+        update() {
+            this.y += this.speedY;
+            this.x += this.speedX;
+            if (this.y < -10) this.reset(false);
+        }
+        draw() {
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+    function init() {
+        const count = innerWidth < 640 ? 28 : 55;
+        particles = [];
+        for (let i = 0; i < count; i++) particles.push(new Particle());
+    }
+    function animate() {
+        if (!running) return;
+        ctx.clearRect(0, 0, innerWidth, innerHeight);
+        for (const p of particles) { p.update(); p.draw(); }
+        requestAnimationFrame(animate);
+    }
+    document.addEventListener('visibilitychange', () => {
+        running = !document.hidden;
+        if (running) animate();
     });
-    requestAnimationFrame(animateParticles);
-}
+    let resizeT;
+    window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(resize, 150); });
+    resize();
+    animate();
+})();
 
-// Inicializar partículas
-initParticles();
-animateParticles();
-
-// Redimensionar canvas cuando cambie el tamaño de la ventana
-window.addEventListener('resize', () => {
-    canvas.width = innerWidth;
-    canvas.height = innerHeight;
-    initParticles();
-});
-
-// TEMA CLARO/OSCURO
+// TEMA CLARO/OSCURO (igual que la portada: variables CSS + persistencia)
 const toggle = document.getElementById('themeToggle');
-toggle.addEventListener('click', () => {
-    const isDark = document.body.style.background === 'var(--dark)';
-    document.body.style.background = isDark ? 'var(--light)' : 'var(--dark)';
-    document.body.style.color = isDark ? '#000' : 'var(--light)';
-    toggle.textContent = isDark ? 'SUN' : 'MOON';
-    localStorage.setItem('theme', isDark ? 'light' : 'dark');
-});
-
-// Aplicar tema guardado
-if (localStorage.getItem('theme') === 'light') {
-    document.body.style.background = 'var(--light)';
-    document.body.style.color = '#000';
-    toggle.textContent = 'SUN';
+function applyTheme(theme) {
+    if (theme === 'light') {
+        document.documentElement.style.setProperty('--dark', '#f8fafc');
+        document.documentElement.style.setProperty('--light', '#0f172a');
+        document.documentElement.style.setProperty('--text-secondary', '#64748b');
+        document.documentElement.style.setProperty('--card-bg', 'rgba(0, 0, 0, 0.06)');
+        document.documentElement.style.setProperty('--hover-bg', 'rgba(255, 69, 0, 0.1)');
+        document.documentElement.style.setProperty('--border', 'rgba(255, 69, 0, 0.3)');
+        if (toggle) toggle.innerHTML = '<i class="fas fa-sun" aria-hidden="true"></i>';
+    } else {
+        document.documentElement.style.setProperty('--dark', '#0f172a');
+        document.documentElement.style.setProperty('--light', '#f8fafc');
+        document.documentElement.style.setProperty('--text-secondary', '#cbd5e1');
+        document.documentElement.style.setProperty('--card-bg', 'rgba(255, 255, 255, 0.06)');
+        document.documentElement.style.setProperty('--hover-bg', 'rgba(255, 69, 0, 0.1)');
+        document.documentElement.style.setProperty('--border', 'rgba(255, 69, 0, 0.2)');
+        if (toggle) toggle.innerHTML = '<i class="fas fa-moon" aria-hidden="true"></i>';
+    }
+    try { localStorage.setItem('theme', theme); } catch (e) {}
 }
-
-// TRADUCTOR
-function googleTranslateElementInit() {
-    new google.translate.TranslateElement({
-        pageLanguage: 'es',
-        autoDisplay: false
-    }, 'google_translate_element');
+if (toggle) {
+    toggle.addEventListener('click', () => {
+        let current = 'dark';
+        try { current = localStorage.getItem('theme') || 'dark'; } catch (e) {}
+        applyTheme(current === 'dark' ? 'light' : 'dark');
+    });
 }
+(function initTheme() {
+    let saved = 'dark';
+    try {
+        saved = localStorage.getItem('theme')
+            || (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    } catch (e) {}
+    applyTheme(saved);
+})();
+
+// TRADUCTOR (expuesto globalmente para el callback de Google)
+window.googleTranslateElementInit = function () {
+    try {
+        new google.translate.TranslateElement({ pageLanguage: 'es', autoDisplay: false }, 'google_translate_element');
+    } catch (e) {}
+};
 
 // NOTIFICACIONES
 function showNotification(msg) {
     const n = document.getElementById('notification');
+    if (!n) return;
     n.textContent = msg;
     n.classList.add('show');
     setTimeout(() => n.classList.remove('show'), 3000);
@@ -93,106 +118,43 @@ function showNotification(msg) {
 
 // SCROLL TO TOP
 const backToTop = document.getElementById('backToTop');
-window.addEventListener('scroll', () => {
-    backToTop.classList.toggle('visible', window.scrollY > 300);
-});
-
-backToTop.addEventListener('click', () => {
-    window.scrollTo({
-        top: 0,
-        behavior: 'smooth'
+if (backToTop) {
+    window.addEventListener('scroll', () => {
+        backToTop.classList.toggle('visible', window.scrollY > 300);
+    }, { passive: true });
+    backToTop.addEventListener('click', () => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     });
-});
+}
 
 // SCROLL SUAVE PARA ENLACES INTERNOS
 document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-    anchor.addEventListener('click', function(e) {
-        e.preventDefault();
-        const target = document.querySelector(this.getAttribute('href'));
+    anchor.addEventListener('click', function (e) {
+        const id = this.getAttribute('href');
+        if (!id || id.length < 2) return;
+        const target = document.querySelector(id);
         if (target) {
-            window.scrollTo({
-                top: target.offsetTop - 80,
-                behavior: 'smooth'
-            });
+            e.preventDefault();
+            window.scrollTo({ top: target.offsetTop - 80, behavior: 'smooth' });
         }
     });
 });
 
 // FUNCIONALIDADES ESPECÍFICAS PARA EVENTOS
 
-// Resaltar eventos próximos
+// Resaltar eventos próximos (en los próximos 30 días)
 function highlightUpcomingEvents() {
     const today = new Date();
-    const eventItems = document.querySelectorAll('.item[itemscope]');
-    
-    eventItems.forEach(item => {
-        const dateElement = item.querySelector('time');
-        if (dateElement) {
-            const eventDate = new Date(dateElement.getAttribute('datetime'));
-            
-            // Si el evento es en los próximos 30 días, resaltarlo
-            const daysUntilEvent = (eventDate - today) / (1000 * 60 * 60 * 24);
-            if (daysUntilEvent >= 0 && daysUntilEvent <= 30) {
-                item.classList.add('event-highlight');
-            }
+    today.setHours(0, 0, 0, 0);
+    document.querySelectorAll('.item[itemscope] time[datetime]').forEach(timeEl => {
+        const eventDate = new Date(timeEl.getAttribute('datetime'));
+        if (isNaN(eventDate)) return;
+        const daysUntilEvent = (eventDate - today) / (1000 * 60 * 60 * 24);
+        if (daysUntilEvent >= 0 && daysUntilEvent <= 30) {
+            const item = timeEl.closest('.item');
+            if (item) item.classList.add('event-highlight');
         }
     });
 }
 
-// Filtrar eventos por estado
-function filterEvents(status) {
-    const eventItems = document.querySelectorAll('.item[itemscope]');
-    
-    eventItems.forEach(item => {
-        const dateElement = item.querySelector('time');
-        if (dateElement) {
-            const eventDate = new Date(dateElement.getAttribute('datetime'));
-            const today = new Date();
-            
-            let showItem = false;
-            
-            if (status === 'upcoming' && eventDate >= today) {
-                showItem = true;
-            } else if (status === 'past' && eventDate < today) {
-                showItem = true;
-            } else if (status === 'all') {
-                showItem = true;
-            }
-            
-            item.style.display = showItem ? 'block' : 'none';
-        }
-    });
-}
-
-// Inicializar funcionalidades cuando el DOM esté listo
-document.addEventListener('DOMContentLoaded', () => {
-    highlightUpcomingEvents();
-    
-    // Agregar botones de filtro si no existen
-    if (!document.querySelector('.event-filters')) {
-        const filters = document.createElement('div');
-        filters.className = 'event-filters';
-        filters.innerHTML = `
-            <div style="text-align: center; margin-bottom: 2rem;">
-            </div>
-        `;
-        
-        const eventosSection = document.querySelector('#proximos-eventos');
-        if (eventosSection) {
-            eventosSection.parentNode.insertBefore(filters, eventosSection);
-            
-            // Agregar event listeners a los botones de filtro
-            document.querySelectorAll('.filter-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const filter = btn.getAttribute('data-filter');
-                    filterEvents(filter);
-                    
-                    // Actualizar estado activo de los botones
-                    document.querySelectorAll('.filter-btn').forEach(b => {
-                        b.style.opacity = b === btn ? '1' : '0.7';
-                    });
-                });
-            });
-        }
-    }
-});
+document.addEventListener('DOMContentLoaded', highlightUpcomingEvents);
