@@ -14,15 +14,14 @@ const firebaseConfig = {
 };
 
     try {
-        firebase.initializeApp(firebaseConfig);
+        if (!firebase.apps || !firebase.apps.length) firebase.initializeApp(firebaseConfig);
         console.log('Firebase inicializado correctamente');
-        const db = firebase.database();
-        console.log('Base de datos:', db);
     } catch (error) {
         console.error('Error al inicializar Firebase:', error);
         document.getElementById('status-message').textContent = 'Error al inicializar Firebase';
         return;
     }
+    const db = firebase.database();
 
     // --------- Generar ID de sesión y QR ---------
     const sessionId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -39,19 +38,15 @@ const firebaseConfig = {
     }
     console.log('Contenedor #qrcode encontrado');
 
-    const qrUrl = `https://pacetrack.netlify.app/timer/timer.html?session=${sessionId}`;
+    const qrUrl = `https://pacetrack.es/timer_PC/Mobil/timer.html?session=${sessionId}`;
     console.log('Generando QR para URL:', qrUrl);
     try {
-        QRCode.toCanvas(qrUrl, { width: 200 }, function (error, canvas) {
-            if (error) {
-                console.error('Error generando QR:', error);
-                document.getElementById('status-message').textContent = 'Error al generar el código QR';
-                return;
-            }
-            qrcodeContainer.appendChild(canvas);
-            console.log('QR generado exitosamente');
-            document.getElementById('status-message').textContent = 'QR generado. Escanea para empezar.';
-        });
+        if (typeof QRCode === 'undefined') throw new Error('Librería QR no cargada (sin conexión)');
+        qrcodeContainer.innerHTML = '';
+        // qrcodejs (davidshimjs) API: new QRCode(elemento, {text, width, height})
+        new QRCode(qrcodeContainer, { text: qrUrl, width: 200, height: 200 });
+        console.log('QR generado exitosamente');
+        document.getElementById('status-message').textContent = 'QR generado. Escanea para empezar.';
     } catch (error) {
         console.error('Error al intentar generar QR:', error);
         document.getElementById('status-message').textContent = 'Error al generar el código QR';

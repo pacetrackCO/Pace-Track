@@ -9,7 +9,7 @@ const firebaseConfig = {
   measurementId: "G-M7E0JYMVGX"
 };
 
-firebase.initializeApp(firebaseConfig);
+if (!firebase.apps || !firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 
 const urlParams = new URLSearchParams(window.location.search);
@@ -48,7 +48,7 @@ const calibrationDuration = 3000;
 let recordedLaps = [];
 
 function saveLaps() {
-    localStorage.setItem('recordedLaps', JSON.stringify(recordedLaps));
+    try { localStorage.setItem('pt_pcmobil_recordedLaps', JSON.stringify(recordedLaps)); } catch (e) {}
     if (sessionId) {
         database.ref(`sessions/${sessionId}/laps`).set(recordedLaps)
             .then(() => {
@@ -66,11 +66,17 @@ function saveLaps() {
 }
 
 function loadLaps() {
-    const storedLaps = localStorage.getItem('recordedLaps');
-    if (storedLaps) {
-        recordedLaps = JSON.parse(storedLaps);
-        displayLaps();
-    }
+    try {
+        const legacy = localStorage.getItem('recordedLaps');
+        if (legacy && !localStorage.getItem('pt_pcmobil_recordedLaps')) {
+            localStorage.setItem('pt_pcmobil_recordedLaps', legacy);
+        }
+        const storedLaps = localStorage.getItem('pt_pcmobil_recordedLaps');
+        if (storedLaps) {
+            recordedLaps = JSON.parse(storedLaps);
+            displayLaps();
+        }
+    } catch (e) {}
 }
 
 function displayLaps() {
@@ -281,6 +287,11 @@ function detectMovement() {
 resetButton.addEventListener('click', () => {
     cancelAnimationFrame(animationFrameId);
     clearTimeout(calibrationTimeoutId);
+    try {
+        const s = video && video.srcObject;
+        if (s && s.getTracks) s.getTracks().forEach(t => t.stop());
+        if (video) video.srcObject = null;
+    } catch (e) {}
     
     timerState = 'stopped';
     startTime = 0;
