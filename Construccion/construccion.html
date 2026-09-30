@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>En Construcción - PaceTrack</title>
     <meta name="description" content="PaceTrack Server en desarrollo. ¡Vuelve pronto!">
-    <link rel="icon" href="../images/favicon.ico">
+    <link rel="icon" href="../images/favicon.png">
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Orbitron&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="../pacetrack-ui.css">
     <style>
         :root{--main:#ff4500;--accent:#ff8c00;--dark:#0f172a;--light:#f8fafc;--glow:0 0 20px rgba(255,69,0,.6);}
         *{margin:0;padding:0;box-sizing:border-box;}
@@ -36,17 +37,18 @@
         }
     </style>
 </head>
-<body>
+<body class="construction-page">
 
 <canvas id="particles"></canvas>
-<button id="themeToggle" aria-label="Tema">MOON</button>
+<a class="pt-app-nav" href="../index.html" aria-label="Volver al inicio de PaceTrack">PACE / TRACK</a>
+<button id="themeToggle" aria-label="Cambiar entre tema claro y oscuro" style="width:auto;min-width:44px;height:44px;border-radius:6px;padding:0 12px;font-size:12px;">Tema oscuro</button>
 
 <div class="container">
-    <img src="../images/mi_logo.png" alt="PaceTrack" class="logo">
-    <div class="icon">CONSTRUCTION</div>
-    <h1>¡EN CONSTRUCCIÓN!</h1>
-    <p>Estamos cocinando algo brutal para <strong>PaceTrack Server</strong>.<br>Vuelve en unos días y fliparás.</p>
-    <button class="btn" id="backHome">VOLVER AL INICIO</button>
+    <img src="../Images/mi_logo2.png" alt="PaceTrack" class="logo">
+    <div class="icon" aria-hidden="true">MÓDULO 04 / EN PROCESO</div>
+    <h1>En desarrollo</h1>
+    <p>La página de <strong>PaceTrack Server</strong> todavía no está disponible. El cronometraje local sigue listo para tus sesiones.</p>
+    <button class="btn" id="backHome">Volver al inicio</button>
 </div>
 
 <script>
@@ -82,18 +84,15 @@
 
     // TEMA CLARO/OSCURO
     const toggle = document.getElementById('themeToggle');
-    toggle.addEventListener('click', () => {
-        const isDark = document.body.style.background.includes('0f172a');
-        document.body.style.background = isDark ? 'var(--light)' : 'var(--dark)';
-        document.body.style.color = isDark ? '#000' : 'var(--light)';
-        toggle.textContent = isDark ? 'SUN' : 'MOON';
-        localStorage.setItem('theme', isDark ? 'light' : 'dark');
-    });
-    if (localStorage.getItem('theme') === 'light') {
-        document.body.style.background = 'var(--light)';
-        document.body.style.color = '#000';
-        toggle.textContent = 'SUN';
+    function applyTheme(theme) {
+        document.documentElement.dataset.theme = theme;
+        toggle.textContent = theme === 'dark' ? 'Tema claro' : 'Tema oscuro';
+        localStorage.setItem('theme', theme);
     }
+    toggle.addEventListener('click', () => {
+        applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+    });
+    applyTheme(localStorage.getItem('theme') === 'dark' ? 'dark' : 'light');
 </script>
 </body>
 </html>

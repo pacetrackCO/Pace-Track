@@ -92,6 +92,7 @@ document.querySelectorAll('.btn[data-url]').forEach(btn => {
 // TEMA CLARO/OSCURO (con guarda por si el botón no existe)
 const toggle = document.getElementById('themeToggle');
 function applyTheme(theme) {
+    document.documentElement.dataset.theme = theme;
     if (theme === 'light') {
         document.documentElement.style.setProperty('--dark', '#f8fafc');
         document.documentElement.style.setProperty('--light', '#0f172a');

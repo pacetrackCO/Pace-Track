@@ -6,7 +6,13 @@ The imported website uses vanilla HTML, CSS and JavaScript, with Netlify configu
 
 The user requested a visual refresh across the entire interface, retaining the original orange/amber identity or harmonious colors. The design preview uses orange, amber and night blue.
 
-The original website files have not been modified. Isolated copies live under `artifacts/mockup-sandbox/public/pacetrack-current/` (baseline) and `pacetrack-refresh/` (redesign). The sandbox's React wrappers are preview infrastructure, not a migration of the website.
+The approved design is integrated into all eight original pages through the root `pacetrack-ui.css`. The site retains vanilla HTML/CSS/JavaScript and its original Netlify and Firebase service code. Isolated copies remain under `artifacts/mockup-sandbox/public/pacetrack-current/` (baseline) and `pacetrack-refresh/` (design reference). The sandbox's React wrappers are preview infrastructure, not a migration of the website.
+
+## Running the website
+
+The `PaceTrack` workflow runs `python3 -m http.server 5000 --bind 0.0.0.0` from the project root for local visual inspection. Open `/` or the existing explicit HTML page paths. This is a static development server: Netlify redirects, server functions and contact submission still require the original hosting services; they are not emulated locally.
+
+Run `node tests/verify-interface.mjs` to check all eight pages, required controls, local assets, service dependencies and JavaScript syntax.
 
 Use the managed workflow `artifacts/mockup-sandbox: Component Preview Server` to run the design preview. It runs `npm run dev` in `artifacts/mockup-sandbox`; the service configuration supplies its port and `/__mockup/` base path.
 
@@ -18,4 +24,4 @@ The refresh selector opens all eight existing pages. For inspection, the refresh
 
 Contact submissions and external Firebase signaling/results synchronization are explicitly disabled in the preview copies. Local camera-based timing still requires permission and a compatible secure browser. Do not treat device synchronization as tested or operational in this preview.
 
-Apply a user-approved design to the original vanilla site separately; retain original event hooks and services rather than copying preview-only service disabling.
+When updating the website from any later design reference, retain original event hooks and services rather than copying preview-only service disabling. Timer text colors are operational status indicators controlled by the timer scripts; do not override them with `!important` in shared styles.

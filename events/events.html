@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     
     <!-- Título SEO optimizado -->
-    <title>Eventos PaceTrack ⏱️ | Competiciones que utilizan nuestro cronómetro</title>
+    <title>Eventos PaceTrack | Competiciones y encuentros</title>
     
     <!-- Meta description perfecta -->
     <meta name="description" content="Eventos que utilizan PaceTrack como cronómetro oficial. Descubre competiciones de pumptrack, velódromo y atletismo que confían en nuestra tecnología.">
@@ -16,7 +16,7 @@
     <meta name="keywords" content="eventos pumptrack, competiciones cronómetro, carreras pace track, eventos deportivos, cronometraje oficial, competiciones velocidad">
     
     <!-- Open Graph optimizado -->
-    <meta property="og:title" content="Eventos PaceTrack ⏱️ | Competiciones Oficiales">
+    <meta property="og:title" content="Eventos PaceTrack | Competiciones">
     <meta property="og:description" content="Eventos que utilizan PaceTrack como cronómetro oficial para pumptrack, velódromo y atletismo.">
     <meta property="og:image" content="https://pacetrack.es/Images/mi_logo.png">
     <meta property="og:image:alt" content="PaceTrack - Eventos Oficiales">
@@ -27,7 +27,7 @@
     
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Eventos PaceTrack ⏱️ | Competiciones Oficiales">
+    <meta name="twitter:title" content="Eventos PaceTrack | Competiciones">
     <meta name="twitter:description" content="Eventos que utilizan PaceTrack como cronómetro oficial">
     <meta name="twitter:image" content="https://pacetrack.es/Images/mi_logo.png">
     
@@ -45,6 +45,7 @@
     
     <!-- CSS -->
     <link rel="stylesheet" href="events.css">
+    <link rel="stylesheet" href="../pacetrack-ui.css">
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Orbitron&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     
@@ -101,13 +102,17 @@
 <body itemscope itemtype="https://schema.org/WebPage">
 <canvas id="particles"></canvas>
 
-<!-- Navegación accesible -->
-<nav aria-label="Navegación principal">
-    <button id="themeToggle" aria-label="Cambiar entre tema claro y oscuro"><i class="fas fa-moon" aria-hidden="true"></i></button>
-    <div id="google_translate_element" class="google-translate" aria-label="Selector de idioma"></div>
-</nav>
-
 <header role="banner">
+    <nav class="site-nav" aria-label="Navegación del sitio">
+        <a class="site-brand" href="../index.html">PACE<b>/</b>TRACK</a>
+        <div class="site-nav-links">
+            <a href="../index.html">Inicio</a>
+            <a href="../index.html#cronometros-titulo">Cronómetros</a>
+            <a href="../index.html#contacto">Contacto</a>
+        </div>
+        <button id="themeToggle" aria-label="Cambiar entre tema claro y oscuro"><i class="fas fa-moon" aria-hidden="true"></i></button>
+        <div id="google_translate_element" class="google-translate" aria-label="Selector de idioma"></div>
+    </nav>
     <a href="../index.html" aria-label="Volver a la página principal de PaceTrack">
         <img src="../Images/mi_logo2.png" alt="PaceTrack - Cronómetro Profesional para Deportes de Velocidad" class="logo" itemprop="image">
     </a>
@@ -150,7 +155,7 @@
         <h2 id="pasados-titulo">Eventos Pasados</h2>
         <div class="grid">
             <div class="item" itemscope itemtype="https://schema.org/Event">
-                <span class="icon" aria-hidden="true">🚲</span>
+                <span class="icon" aria-hidden="true">22 / 11</span>
                 <h3 itemprop="name">Dia sobre ruedas</h3>
                 <p><strong>Fecha:</strong> <time datetime="2025-11-22" itemprop="startDate">22 Noviembre 2025</time></p>
                 <p><strong>Lugar:</strong> <span itemprop="location">Pumptrack Salt</span></p>

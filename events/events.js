@@ -65,6 +65,7 @@
 // TEMA CLARO/OSCURO (igual que la portada: variables CSS + persistencia)
 const toggle = document.getElementById('themeToggle');
 function applyTheme(theme) {
+    document.documentElement.dataset.theme = theme;
     if (theme === 'light') {
         document.documentElement.style.setProperty('--dark', '#f8fafc');
         document.documentElement.style.setProperty('--light', '#0f172a');
