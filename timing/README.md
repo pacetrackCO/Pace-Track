@@ -58,6 +58,8 @@ Estado comprobado el **1 de octubre de 2026**.
 | Chrome/Edge en Windows o macOS | Comparten familia de motor con Chromium, sin certificar esos sistemas | Pruebas físicas en esos sistemas y sus cámaras |
 | Safari en macOS / Firefox | No ejecutados en esta validación | Pruebas por motor y dispositivos reales |
 
+El usuario confirmó funcionamiento en **iOS** el 1 de octubre de 2026, sin especificar modelo, versiones, navegador, modo o método de detección. Es una confirmación informal de uso, no una ejecución documentada de la matriz ni una certificación de precisión.
+
 La vista móvil de Chromium **no es una prueba de Android ni de iOS**. Las cámaras, las respuestas de Firebase, el almacenamiento y los fallos de permisos usados en el banco de pruebas están simulados. No se han publicado estos cambios ni se han escrito resultados de prueba en Firebase real.
 
 ### Pruebas reproducibles
@@ -84,3 +86,5 @@ Cobertura:
 - Recuperación de la sesión PC, archivos anteriores, SDK no disponible y almacenamiento corrupto/bloqueado.
 
 **Antes de confiar en el cronometraje sobre una pista real**, deben probarse cámaras físicas Android/iOS y el emparejamiento real entre estaciones, con permisos, cambios de aplicación, bloqueo, mala iluminación, pérdida de red y confirmaciones tardías. Anota dispositivo, sistema, navegador, escena, método y diferencia observada frente a una referencia independiente; no extrapoles una prueba a todos los dispositivos.
+
+El protocolo y la ficha para esa comprobación están en [Pruebas físicas](physical-validation.md). Su preparación y las pruebas automatizadas no sustituyen su ejecución: la validación física sigue pendiente.
