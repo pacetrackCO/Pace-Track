@@ -1,0 +1,20 @@
+#logo {
+    position: fixed;   /* fijo en la pantalla, se superpone a todo */
+    top: -100px;       /* empieza fuera de la pantalla */
+    width: 200px;      /* tamaño mediano inicial */
+    transition: all 0.8s ease-in-out;
+    z-index: 9999;     /* muy por encima de cualquier elemento */
+}
+
+#logo.centered {
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+#logo.moved {
+    top: 20px;
+    left: 20px;
+    width: 80px;
+    transform: none;  /* quitar el translate cuando va a la esquina */
+}

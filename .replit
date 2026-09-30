@@ -1,7 +1,14 @@
-modules = ["nodejs-20", "web"]
+modules = ["nodejs-20", "web", "python-base-3.13"]
 
 [nix]
 channel = "stable-25_05"
 
 [agent]
 expertMode = true
+
+[workflows]
+runButton = "Project"
+
+[[ports]]
+localPort = 23636
+externalPort = 80
