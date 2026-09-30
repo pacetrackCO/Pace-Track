@@ -50,8 +50,15 @@
         <section class="hero">
             <div class="hero-overlay">
                 <h2>Tiempos de la Sesión</h2>
+                <p id="connection-status" role="status" aria-live="polite">Preparando el vínculo de conexión…</p>
+                <p id="storage-status" role="status" aria-live="polite"></p>
+                <p id="session-notice" role="status" aria-live="polite"></p>
+                <p id="session-code"></p>
                 <div id="qrcode"></div>
                 <div id="status-message">Cargando tiempos...</div>
+                <button id="export-results" type="button">Exportar CSV</button>
+                <button id="export-history" type="button">Exportar sesiones guardadas (CSV)</button>
+                <button id="new-session" type="button">Nueva sesión</button>
                 <div id="laps-container" class="feature-grid">
                     <h3>Tiempos de Paso</h3>
                     <ul id="laps-list"></ul>
@@ -61,6 +68,6 @@
     </main>
     <footer>
     </footer>
-    <script src="PCscripts.js"></script>
+    <script src="PCscripts.js?v=20261001"></script>
 </body>
 </html>

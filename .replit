@@ -18,6 +18,14 @@ author = "agent"
 task = "workflow.run"
 args = "PaceTrack"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "timing-unit"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "timing-browser"
+
 [[workflows.workflow]]
 name = "PaceTrack"
 author = "agent"
@@ -29,6 +37,28 @@ waitForPort = 5000
 
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow]]
+name = "timing-unit"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node tests/verify-interface.mjs && node --test tests/*.test.cjs"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "timing-browser"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python3 tests/run-browser-checks.py"
+
+[workflows.workflow.metadata]
+isValidation = true
 
 [[ports]]
 localPort = 5000

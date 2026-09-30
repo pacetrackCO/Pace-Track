@@ -1,0 +1,87 @@
+/* Functional preparation and accessible controls, retaining PaceTrack branding. */
+.timing-enabled { background:#0f172a; color:#f8fafc; font-family:var(--pt-sans, sans-serif); }
+.timing-enabled [hidden] { display:none !important; }
+.timing-enabled #app-container { height:100vh; height:100dvh; width:100%; }
+.timing-enabled #video-container { width:100%; height:100%; }
+.timing-enabled video { transform:none; object-fit:cover; }
+.timing-enabled #overlay-canvas { pointer-events:none; }
+.timing-enabled #app-container #status-message {
+  position:absolute; top:72px; left:50%; right:auto; transform:translateX(-50%);
+  width:min(90vw,600px); max-width:90vw; max-height:100px; overflow:auto;
+}
+.timing-enabled[data-timing-state="setup"] #timer-display,
+.timing-enabled[data-timing-state="requesting"] #timer-display,
+.timing-enabled[data-timing-state="calibrating"] #timer-display,
+.timing-enabled[data-timing-state="testing"] #timer-display,
+.timing-enabled[data-timing-state="tested"] #timer-display,
+.timing-enabled[data-timing-state="error"] #timer-display,
+.timing-enabled[data-timing-state="interrupted"] #timer-display { visibility:hidden; }
+.timing-enabled #timing-guide {
+  position:fixed; z-index:45; bottom:22px; left:50%; transform:translateX(-50%);
+  width:min(94vw,560px); max-height:65vh; max-height:65dvh; overflow:auto; padding:22px;
+  border:1px solid rgba(255,140,0,.55); border-radius:8px; background:rgba(15,23,42,.97);
+  color:#f8fafc; box-shadow:0 12px 40px #0005; line-height:1.5;
+}
+.timing-mode { display:block; color:#ffae42; font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; }
+.timing-enabled #timing-guide h2 { color:#f8fafc; font:800 1.9rem/1.1 var(--pt-display,sans-serif); margin:10px 0; }
+.timing-enabled #timing-guide p { color:#cbd5e1; font-size:.92rem; margin:12px 0; }
+.timing-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.timing-enabled #app-container .timing-actions button,
+.timing-enabled #app-container .timing-tools button {
+  min-width:0; min-height:44px; max-width:none; margin:0; padding:12px 14px;
+  flex:1 1 180px; border-radius:5px; font-size:.75rem; letter-spacing:.03em;
+}
+.timing-enabled button:disabled { opacity:.5; cursor:not-allowed; transform:none; }
+.timing-enabled progress { width:100%; height:12px; accent-color:#ffae42; }
+.timing-enabled #app-container #timing-manual-trigger {
+  position:fixed; bottom:max(18px, env(safe-area-inset-bottom)); left:50%;
+  transform:translateX(-50%); z-index:31; width:min(88vw,360px); max-width:none;
+}
+.timing-enabled #app-container #controls {
+  position:static; inset:auto; transform:none; z-index:auto;
+  max-width:none; width:100%; display:flex; flex-direction:column; gap:7px; padding:0;
+  max-height:none; overflow:visible;
+}
+.timing-enabled #app-container #controls button { min-width:0; min-height:44px; height:auto; flex:0 0 auto; padding:10px; margin:0; font-size:.68rem; max-width:none; }
+.timing-enabled #timing-sync-status {
+  position:fixed; top:48px; left:50%; transform:translateX(-50%); z-index:28;
+  margin:0; padding:4px 8px; max-width:90vw; color:#cbd5e1; background:#0f172ae6;
+  font-size:.68rem; text-align:center; line-height:1.4;
+}
+.timing-enabled #timing-sync-status[data-kind="error"] { color:#fda4af; }
+.timing-enabled #timing-sync-status[data-kind="pending"] { color:#ffae42; }
+.timing-enabled #timing-sync-status[data-kind="confirmed"] { color:#67e8f9; }
+.timing-enabled .timing-tools {
+  position:fixed; top:14px; right:16px; z-index:46; max-width:min(92vw,350px);
+  background:#0f172af5; border:1px solid #ff8c0066; border-radius:6px; color:#f8fafc;
+}
+.timing-tools summary { padding:10px 13px; font-size:.75rem; cursor:pointer; }
+.timing-tools-content { padding:0 14px 14px; max-height:75vh; max-height:75dvh; overflow:auto; }
+.timing-tools-content p { font-size:.8rem; color:#cbd5e1; line-height:1.5; }
+.timing-enabled #timing-tools #sensitivity-slider-container {
+  position:static; inset:auto; transform:none; width:100%; max-width:none;
+  padding:8px 0; margin:0; background:transparent !important; border:0; box-shadow:none;
+}
+.timing-tools-content button { display:block; width:100%; margin:8px 0 !important; }
+.timing-enabled .modal { overflow:auto; padding:14px; }
+.timing-enabled .modal-content { max-height:90dvh; overflow:auto; }
+.timing-enabled #app-container #p2p-panel { top:118px; left:16px; max-height:48dvh; overflow:auto; width:min(300px,30vw); }
+.timing-enabled #app-container #laps-container { top:118px; right:16px; max-height:47dvh; bottom:auto; width:min(270px,28vw); }
+@media (max-width:760px) {
+  .timing-enabled.timing-mode-sector #app-container #timer-display { top:55%; }
+  .timing-enabled #app-container #laps-container { top:auto; right:12px; bottom:100px; width:46vw; max-height:28dvh; }
+  .timing-enabled #timing-guide { padding:18px; bottom:12px; max-height:62dvh; }
+  .timing-enabled #timing-guide h2 { font-size:1.6rem; }
+  .timing-enabled #app-container #status-message { top:82px; font-size:.8rem; }
+  .timing-enabled #timing-sync-status { top:53px; width:90vw; max-height:38px; overflow:auto; }
+  .timing-enabled .timing-tools { right:10px; top:12px; }
+  .timing-enabled #app-container #p2p-panel { top:140px; left:12px; width:calc(100% - 24px); max-height:30dvh; z-index:25; }
+  .timing-enabled #p2p-content button { min-height:44px; font-size:.7rem; padding:9px; }
+}
+@media (max-height:500px) and (orientation:landscape) {
+  .timing-enabled #timing-guide { left:auto; right:12px; transform:none; width:48vw; max-height:75dvh; }
+  .timing-enabled #timer-display { left:32%; font-size:3rem; }
+  .timing-enabled.timing-mode-sector #app-container #timer-display { left:65%; top:48%; }
+  .timing-enabled.timing-mode-sector #app-container #p2p-panel { top:104px; width:32vw; max-height:35vh; }
+  .timing-enabled.timing-mode-sector #app-container #laps-container { top:auto; bottom:12px; right:auto; left:16px; width:32vw; max-height:24vh; }
+}

@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="stylesSector.css">
     <link rel="stylesheet" href="logo-splash/stylesintro.css">
     <link rel="stylesheet" href="../pacetrack-ui.css">
+    <link rel="stylesheet" href="../timing/timing.css?v=20261001">
 </head>
 
 <body>
@@ -94,16 +95,22 @@
         <!-- Panel de control P2P (colapsable) -->
         <div id="p2p-panel">
             <div id="p2p-header">
-                <span>📡 P2P <span id="p2p-role-indicator"></span></span>
+                <span>Sincronizar salida y llegada <span id="p2p-role-indicator"></span></span>
                 <button id="p2p-toggle">▼</button>
             </div>
             <div id="p2p-content">
-                <input type="text" id="p2p-room-id" placeholder="ID de sala">
+                <p>En dos dispositivos: crea una sala en salida y escribe el mismo código en llegada.</p>
+                <label for="p2p-room-id">Código de sala</label>
+                <input type="text" id="p2p-room-id" placeholder="Ej.: equipo-azul" autocomplete="off">
                 <div style="display: flex; gap: 0.5rem;">
-                    <button id="p2p-create" class="gradient-blue">Crear (salida)</button>
-                    <button id="p2p-join" class="gradient-green">Unirse (llegada)</button>
+                    <button id="p2p-create" class="gradient-blue">Crear sala · Salida</button>
+                    <button id="p2p-join" class="gradient-green">Entrar · Llegada</button>
                 </div>
-                <p id="p2p-status">🔴 Desconectado</p>
+                <button id="p2p-ready" class="gradient-green" style="display:none">Confirmar que llegada está lista</button>
+                <button id="p2p-retry-result" class="gradient-blue" style="display:none">Reintentar confirmación del resultado pendiente</button>
+                <button id="p2p-local" type="button">Usar solo este dispositivo</button>
+                <p id="p2p-status" role="status" aria-live="polite">Modo local · este dispositivo</p>
+                <p id="p2p-sync-status" role="status" aria-live="polite">Modo local explícito · cronometraje y resultados en este dispositivo; no hay sincronización entre estaciones.</p>
             </div>
         </div>
 
@@ -118,6 +125,8 @@
         <button id="message-box-ok">OK</button>
     </div>
 
-    <script src="scriptsSector.js"></script>
+    <script src="../timing/core.js?v=20261001"></script>
+    <script src="../timing/sector-sync.js?v=20261001"></script>
+    <script src="scriptsSector.js?v=20261001"></script>
 </body>
 </html>

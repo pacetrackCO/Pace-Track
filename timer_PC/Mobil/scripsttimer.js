@@ -1,343 +1,502 @@
-const firebaseConfig = {
-  apiKey: "AIzaSyC_IPrOClJF0uIkQB_yIEMdZZ28AgCE4Qk",
-  authDomain: "pacetrack-579ef.firebaseapp.com",
-  databaseURL: "https://pacetrack-579ef-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "pacetrack-579ef",
-  storageBucket: "pacetrack-579ef.firebasestorage.app",
-  messagingSenderId: "997850928548",
-  appId: "1:997850928548:web:ce6bf324a6a2c42d4bdd31",
-  measurementId: "G-M7E0JYMVGX"
-};
+(function () {
+    'use strict';
 
-if (!firebase.apps || !firebase.apps.length) firebase.initializeApp(firebaseConfig);
-const database = firebase.database();
+    const firebaseConfig = {
+        apiKey: "AIzaSyC_IPrOClJF0uIkQB_yIEMdZZ28AgCE4k",
+        authDomain: "pacetrack-579ef.firebaseapp.com",
+        databaseURL: "https://pacetrack-579ef-default-rtdb.europe-west1.firebasedatabase.app",
+        projectId: "pacetrack-579ef",
+        storageBucket: "pacetrack-579ef.firebasestorage.app",
+        messagingSenderId: "997850928548",
+        appId: "1:997850928548:web:ce6bf324a6a2c42d4bdd31",
+        measurementId: "G-M7E0JYMVGX"
+    };
 
-const urlParams = new URLSearchParams(window.location.search);
-const sessionId = urlParams.get('session') || null;
+    const byId = id => document.getElementById(id);
+    const video = byId('video');
+    const overlayCanvas = byId('overlay-canvas');
+    const timerDisplay = byId('timer-display');
+    const statusMessage = byId('status-message');
+    const syncStatus = byId('sync-status');
+    const resetButton = byId('reset-button');
+    const sensitivitySlider = byId('sensitivity-slider');
+    const lapsContainer = byId('laps-container');
+    const lapsList = byId('laps-list');
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get('session');
+    const storageKey = sessionId ? `pt_pcmobil_recordedLaps:${sessionId}` : 'pt_pcmobil_recordedLaps:local';
+    const queueStorageKey = 'pacetrack.result-sync.v1';
+    let database = null;
+    let firebaseReady = false;
+    let runtime = null;
+    let fallbackFrame = 0;
+    let runStartedAt = null;
+    let currentMethod = null;
+    let lastElapsed = 0;
+    let recordedLaps = [];
+    let localSaveFailed = false;
+    let sync = null;
+    let firebaseConnectionRef = null;
+    let firebaseConnectionHandler = null;
+    let firebaseListenersAttached = false;
+    let networkListenersAttached = false;
+    let fallbackPaused = false;
 
-// Variables globales
-const video = document.getElementById('video');
-const overlayCanvas = document.getElementById('overlay-canvas');
-const timerDisplay = document.getElementById('timer-display');
-const statusMessage = document.getElementById('status-message');
-const resetButton = document.getElementById('reset-button');
-const sensitivitySlider = document.getElementById('sensitivity-slider');
-const messageBox = document.getElementById('message-box');
-const messageContent = document.getElementById('message-content');
-const messageBoxOkButton = document.getElementById('message-box-ok');
-const lapsContainer = document.getElementById('laps-container');
-const lapsList = document.getElementById('laps-list');
-const hiddenCanvas = document.createElement('canvas');
-const hiddenCtx = hiddenCanvas.getContext('2d', { willReadFrequently: true });
-const overlayCtx = overlayCanvas.getContext('2d');
-
-let timerState = 'stopped';
-let startTime = 0;
-let lastDisplayedTime = 0;
-let animationFrameId;
-let calibrationTimeoutId;
-let previousFrameData = null;
-let detectionThreshold = parseInt(sensitivitySlider.value);
-let detectionLineX = 0.5;
-let detectionLineThickness = 0.05;
-let lastDetectionTime = 0;
-const detectionCooldown = 500;
-let isCalibrating = true;
-let calibrationSamples = [];
-const calibrationDuration = 3000;
-let recordedLaps = [];
-
-function saveLaps() {
-    try { localStorage.setItem('pt_pcmobil_recordedLaps', JSON.stringify(recordedLaps)); } catch (e) {}
-    if (sessionId) {
-        database.ref(`sessions/${sessionId}/laps`).set(recordedLaps)
-            .then(() => {
-                console.log('Tiempos guardados en Firebase');
-                statusMessage.textContent = 'Tiempos enviados al servidor';
-            })
-            .catch(error => {
-                console.error('Error al guardar tiempos:', error);
-                showMessageBox('Error al guardar los tiempos en el servidor');
-            });
-    } else {
-        console.warn('No sessionId provided, times saved locally only');
-        statusMessage.textContent = 'No se proporcionó un ID de sesión, tiempos guardados localmente';
+    function formatTime(milliseconds) {
+        const safe = Math.max(0, Number(milliseconds) || 0);
+        const minutes = Math.floor(safe / 60000);
+        const seconds = Math.floor((safe % 60000) / 1000);
+        const ms = Math.floor(safe % 1000);
+        return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
     }
-}
 
-function loadLaps() {
-    try {
-        const legacy = localStorage.getItem('recordedLaps');
-        if (legacy && !localStorage.getItem('pt_pcmobil_recordedLaps')) {
-            localStorage.setItem('pt_pcmobil_recordedLaps', legacy);
+    function setSync(text, kind) {
+        if (runtime && typeof runtime.setSync === 'function') {
+            runtime.setSync(text, kind || 'local');
+            return;
         }
-        const storedLaps = localStorage.getItem('pt_pcmobil_recordedLaps');
-        if (storedLaps) {
-            recordedLaps = JSON.parse(storedLaps);
-            displayLaps();
+        if (syncStatus) {
+            syncStatus.textContent = text;
+            syncStatus.dataset.kind = kind || 'local';
         }
-    } catch (e) {}
-}
+    }
 
-function displayLaps() {
-    lapsList.innerHTML = '';
-    if (recordedLaps.length > 0) {
-        lapsContainer.style.display = 'block';
-        recordedLaps.forEach((lap, index) => {
+    function makeId() {
+        if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
+        return `r-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+    }
+
+    function saveLocal() {
+        try {
+            localStorage.setItem(storageKey, JSON.stringify(recordedLaps));
+            localSaveFailed = false;
+            return true;
+        } catch (error) {
+            localSaveFailed = true;
+            setSync('No se pudo guardar en este dispositivo: ' + error.message, 'error');
+            return false;
+        }
+    }
+
+    function loadLocal() {
+        try {
+            let data = localStorage.getItem(storageKey);
+            if (!data) {
+                data = localStorage.getItem('pt_pcmobil_recordedLaps') || localStorage.getItem('recordedLaps');
+            }
+            const parsed = data ? JSON.parse(data) : [];
+            if (!Array.isArray(parsed)) throw new Error('El historial guardado no tiene un formato válido.');
+            let migrated = false;
+            recordedLaps = parsed.map((item, index) => {
+                if (typeof item === 'number' && Number.isFinite(item)) {
+                    migrated = true;
+                    return {
+                        id: `legacy-${index}-${Math.round(item)}`,
+                        elapsed: item,
+                        method: 'legacy',
+                        timestamp: new Date().toISOString(),
+                        legacy: true,
+                        syncState: 'local'
+                    };
+                }
+                if (item && Number.isFinite(Number(item.elapsed))) return item;
+                return null;
+            }).filter(Boolean);
+            if (migrated) saveLocal();
+        } catch (error) {
+            recordedLaps = [];
+            setSync('No se pudo recuperar el historial: ' + error.message, 'error');
+        }
+        displayLaps();
+    }
+
+    function displayLaps() {
+        lapsList.replaceChildren();
+        lapsContainer.style.display = recordedLaps.length ? 'block' : 'none';
+        recordedLaps.forEach((result, index) => {
             const li = document.createElement('li');
-            li.innerHTML = `<span>P${index + 1}:</span> <span>${formatTime(lap)}</span>`;
+            const label = document.createElement('span');
+            const time = document.createElement('span');
+            const method = document.createElement('small');
+            label.textContent = `P${index + 1}:`;
+            time.textContent = formatTime(result.elapsed);
+            method.textContent = result.method === 'manual' ? 'Manual' :
+                result.method === 'automatic' ? 'Automático' : 'Importado';
+            method.className = 'lap-method';
+            li.append(label, time, method);
             lapsList.appendChild(li);
         });
         lapsList.scrollTop = lapsList.scrollHeight;
-    } else {
-        lapsContainer.style.display = 'none';
     }
-}
 
-function showMessageBox(message) {
-    messageContent.textContent = message;
-    messageBox.style.display = 'block';
-}
-
-function formatTime(milliseconds) {
-    const minutes = Math.floor(milliseconds / 60000);
-    const seconds = Math.floor((milliseconds % 60000) / 1000);
-    const ms = Math.floor(milliseconds % 1000);
-    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
-}
-
-function drawDetectionLine(color = 'rgba(255, 0, 0, 0.7)', isFlashing = false) {
-    overlayCtx.beginPath();
-    const lineXCoord = overlayCanvas.width * detectionLineX;
-    const halfLineThickness = (overlayCanvas.width * detectionLineThickness) / 2;
-    overlayCtx.moveTo(lineXCoord - halfLineThickness, 0);
-    overlayCtx.lineTo(lineXCoord - halfLineThickness, overlayCanvas.height);
-    overlayCtx.moveTo(lineXCoord + halfLineThickness, 0);
-    overlayCtx.lineTo(lineXCoord + halfLineThickness, overlayCanvas.height);
-    overlayCtx.strokeStyle = color;
-    overlayCtx.lineWidth = 4;
-    
-    if (isFlashing) {
-        overlayCtx.stroke();
-        overlayCanvas.classList.add('detection-line-flash');
-        setTimeout(() => {
-            overlayCanvas.classList.remove('detection-line-flash');
-            drawDetectionLine();
-        }, 200);
-    } else {
-        overlayCanvas.classList.remove('detection-line-flash');
-        overlayCtx.stroke();
-    }
-    
-    if (isCalibrating) {
-        overlayCanvas.classList.add('calibrating-line');
-    } else {
-        overlayCanvas.classList.remove('calibrating-line');
-    }
-}
-
-function vibrate(pattern) {
-    if (navigator.vibrate) {
-        navigator.vibrate(pattern);
-    }
-}
-
-async function setupCamera() {
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { facingMode: 'environment' } 
-        });
-        video.srcObject = stream;
-        
-        await new Promise(resolve => {
-            video.onloadedmetadata = () => {
-                resolve();
-            };
-        });
-        
-        hiddenCanvas.width = video.videoWidth;
-        hiddenCanvas.height = video.videoHeight;
-        overlayCanvas.width = video.videoWidth;
-        overlayCanvas.height = video.videoHeight;
-        
-        statusMessage.textContent = 'Calibrando... Mantente quieto y la cámara estable.';
-        startCalibration();
-        animationFrameId = requestAnimationFrame(detectMovement);
-    } catch (err) {
-        console.error('Error al acceder a la cámara:', err);
-        showMessageBox('No se pudo acceder a la cámara. Asegúrate de haber otorgado los permisos o de que tu dispositivo tenga una cámara disponible.');
-    }
-}
-
-function startCalibration() {
-    isCalibrating = true;
-    calibrationSamples = [];
-    statusMessage.textContent = 'Calibrando... mantén la cámara estable.';
-    timerDisplay.textContent = 'CALIBRANDO';
-    timerDisplay.style.color = 'yellow';
-    
-    calibrationTimeoutId = setTimeout(() => {
-        const validSamples = calibrationSamples.filter(s => !isNaN(s) && isFinite(s));
-        const averageNoise = validSamples.length > 0 ? 
-            validSamples.reduce((sum, val) => sum + val, 0) / validSamples.length : 0;
-        
-        detectionThreshold = Math.max(parseInt(sensitivitySlider.min), averageNoise * 2 || 100);
-        detectionThreshold = Math.min(parseInt(sensitivitySlider.max), detectionThreshold + 5);
-        sensitivitySlider.value = detectionThreshold;
-        
-        isCalibrating = false;
-        statusMessage.textContent = 'Calibración completa. ¡Listo para el primer paso!';
-        timerDisplay.textContent = '00:00.000';
-        lastDisplayedTime = 0;
-        timerDisplay.style.color = '#e2e8f0';
-        
-        showMessageBox(`Calibración completa. Umbral de detección inicial: ${detectionThreshold.toFixed(0)}.`);
-    }, calibrationDuration);
-}
-
-function detectMovement() {
-    if (video.paused || video.ended || !video.videoWidth) {
-        animationFrameId = requestAnimationFrame(detectMovement);
-        return;
-    }
-    
-    if (hiddenCanvas.width !== video.videoWidth || hiddenCanvas.height !== video.videoHeight) {
-        hiddenCanvas.width = video.videoWidth;
-        hiddenCanvas.height = video.videoHeight;
-    }
-    
-    if (overlayCanvas.width !== video.videoWidth || overlayCanvas.height !== video.videoHeight) {
-        overlayCanvas.width = video.videoWidth;
-        overlayCanvas.height = video.videoHeight;
-    }
-    
-    hiddenCtx.drawImage(video, 0, 0, hiddenCanvas.width, hiddenCanvas.height);
-    overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-    overlayCtx.drawImage(video, 0, 0, overlayCanvas.width, overlayCanvas.height);
-    drawDetectionLine();
-    
-    const lineStartX = Math.max(0, hiddenCanvas.width * detectionLineX - hiddenCanvas.width * detectionLineThickness / 2);
-    const lineEndX = Math.min(hiddenCanvas.width, hiddenCanvas.width * detectionLineX + hiddenCanvas.width * detectionLineThickness / 2);
-    const lineRegionWidth = lineEndX - lineStartX;
-    
-    const currentFrameData = hiddenCtx.getImageData(lineStartX, 0, lineRegionWidth, hiddenCanvas.height);
-    
-    if (previousFrameData && previousFrameData.data.length === currentFrameData.data.length) {
-        let diff = 0;
-        
-        for (let i = 0; i < currentFrameData.data.length; i += 4) {
-            diff += Math.abs(currentFrameData.data[i] - previousFrameData.data[i]);
-            diff += Math.abs(currentFrameData.data[i + 1] - previousFrameData.data[i + 1]);
-            diff += Math.abs(currentFrameData.data[i + 2] - previousFrameData.data[i + 2]);
+    function updateClock(now) {
+        if (runStartedAt !== null) {
+            lastElapsed = Math.max(0, now - runStartedAt);
+            timerDisplay.textContent = formatTime(lastElapsed);
+            timerDisplay.style.color = '#00FFFF';
         }
-        
-        const normalizedDiff = diff / (currentFrameData.data.length / 4);
-        
-        if (isCalibrating) {
-            calibrationSamples.push(normalizedDiff);
-        } else {
-            const currentTime = performance.now();
-            
-            if (normalizedDiff > detectionThreshold) {
-                if ((currentTime - lastDetectionTime) > detectionCooldown) {
-                    console.log('Movimiento detectado! Diferencia normalizada:', normalizedDiff.toFixed(2));
-                    lastDetectionTime = currentTime;
-                    drawDetectionLine('limegreen', true);
-                    vibrate(200);
-                    
-                    if (timerState === 'stopped') {
-                        startTime = currentTime;
-                        timerState = 'running';
-                        statusMessage.textContent = 'Contando...';
-                        timerDisplay.style.color = '#00FFFF';
-                        timerDisplay.textContent = '00:00.000';
-                        lastDisplayedTime = 0;
-                    } else if (timerState === 'running') {
-                        const elapsed = currentTime - startTime;
-                        recordedLaps.push(elapsed);
-                        saveLaps();
-                        displayLaps();
-                        
-                        timerState = 'stopped';
-                        lastDisplayedTime = elapsed;
-                        statusMessage.textContent = `Paso ${recordedLaps.length} - ${formatTime(elapsed)} - Listo para el siguiente paso.`;
-                        timerDisplay.style.color = '#e2e8f0';
+    }
+
+    function updateTriggerLabel() {
+        const label = runStartedAt === null ? 'Iniciar' : 'Registrar vuelta';
+        if (runtime && typeof runtime.setTriggerLabel === 'function') runtime.setTriggerLabel(label);
+        const fallback = byId('mobile-manual-trigger');
+        if (fallback) fallback.textContent = label;
+    }
+
+    function onTrigger(event) {
+        const now = Number(event && event.now);
+        const method = event && event.method === 'automatic' ? 'automatic' : 'manual';
+        if (!Number.isFinite(now)) return;
+        if (runStartedAt === null) {
+            runStartedAt = now;
+            currentMethod = method;
+            lastElapsed = 0;
+            statusMessage.textContent = 'Cronómetro en marcha. Registra el siguiente paso para guardar el tiempo.';
+            updateTriggerLabel();
+            updateClock(now);
+            return;
+        }
+
+        const elapsed = Math.max(0, now - runStartedAt);
+        const result = {
+            id: makeId(),
+            elapsed: elapsed,
+            method: currentMethod === method ? method : 'manual',
+            timestamp: new Date().toISOString(),
+            sessionId: sessionId || null,
+            syncState: sessionId ? 'pending' : 'local'
+        };
+        recordedLaps.push(result);
+        const stored = saveLocal();
+        displayLaps();
+        runStartedAt = null;
+        lastElapsed = elapsed;
+        currentMethod = null;
+        timerDisplay.textContent = formatTime(elapsed);
+        timerDisplay.style.color = '#e2e8f0';
+        statusMessage.textContent = stored
+            ? `Paso ${recordedLaps.length} guardado (${result.method === 'manual' ? 'manual' : 'automático'}). Listo para el siguiente.`
+            : 'Paso cronometrado, pero no se pudo guardar localmente. Comprueba el almacenamiento del dispositivo.';
+        updateTriggerLabel();
+        if (!stored) return;
+        if (!sessionId) {
+            setSync('Sesión local: resultado guardado solo en este dispositivo.', 'local');
+            return;
+        }
+        if (!sync) {
+            setSync('Resultado guardado localmente; el módulo de sincronización no está disponible. Reintenta cuando se cargue.', 'error');
+            return;
+        }
+        try {
+            sync.enqueue(result);
+            if (!firebaseReady) {
+                setSync('Resultado guardado y en cola local; Firebase no está disponible todavía.', 'pending');
+            }
+        } catch (error) {
+            setSync('Resultado guardado en el dispositivo; no se pudo crear la cola de envío: ' + error.message, 'error');
+        }
+    }
+
+    function onInterrupt(reason) {
+        if (runStartedAt !== null) {
+            runStartedAt = null;
+            currentMethod = null;
+            timerDisplay.textContent = formatTime(lastElapsed);
+            updateTriggerLabel();
+        }
+        statusMessage.textContent = reason || 'La detección se interrumpió. Revisa la cámara y vuelve a preparar.';
+    }
+
+    function updateSyncSummary(event) {
+        const queue = sync ? sync.getQueue(sessionId) : [];
+        const pendingCount = queue.filter(item => item.syncState === 'pending').length;
+        const errorCount = queue.filter(item => item.syncState === 'error').length;
+        if (event && event.error && !queue.length) {
+            setSync('No se pudo sincronizar: ' + event.error + '. Reintenta cuando sea posible.', 'error');
+        } else if (errorCount && pendingCount) {
+            setSync(`${pendingCount} resultado(s) pendiente(s) y ${errorCount} con error. Reintenta la sincronización.`, 'error');
+        } else if (errorCount) {
+            setSync(`${errorCount} resultado(s) con error de sincronización. Reintenta el envío.`, 'error');
+        } else if (pendingCount) {
+            setSync(`${pendingCount} resultado(s) pendiente(s) de confirmación del servidor.`, 'pending');
+        } else if (queue.length && queue.every(item => item.syncState === 'confirmed')) {
+            setSync('Todos los resultados de esta sesión están confirmados por el servidor.', 'confirmed');
+        } else if (event && event.error) {
+            setSync('No se pudo sincronizar: ' + event.error + '. Reintenta cuando sea posible.', 'error');
+        }
+    }
+
+    function attachFirebaseConnection() {
+        if (!firebaseConnectionRef || !sync || firebaseListenersAttached) return;
+        if (!firebaseConnectionHandler) {
+            firebaseConnectionHandler = snapshot => sync && sync.setConnected(snapshot.val() === true);
+        }
+        firebaseConnectionRef.on('value', firebaseConnectionHandler, error => {
+            setSync('No se pudo comprobar la conexión con Firebase: ' + error.message, 'error');
+        });
+        firebaseListenersAttached = true;
+    }
+
+    function detachFirebaseConnection() {
+        if (firebaseConnectionRef && firebaseListenersAttached) {
+            firebaseConnectionRef.off('value', firebaseConnectionHandler);
+            firebaseListenersAttached = false;
+        }
+    }
+
+    function handleOnline() {
+        if (sync) sync.setConnected(true);
+    }
+
+    function handleOffline() {
+        if (sync) sync.setConnected(false);
+    }
+
+    function attachNetworkListeners() {
+        if (networkListenersAttached) return;
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+        networkListenersAttached = true;
+    }
+
+    function detachNetworkListeners() {
+        if (!networkListenersAttached) return;
+        window.removeEventListener('online', handleOnline);
+        window.removeEventListener('offline', handleOffline);
+        networkListenersAttached = false;
+    }
+
+    function handleFallbackBeforeUnload(event) {
+        if (runStartedAt !== null) {
+            event.preventDefault();
+            event.returnValue = '';
+        }
+    }
+
+    function reconcileLocalResults() {
+        if (!sync || !sessionId) return;
+        try {
+            sync.reconcile(recordedLaps);
+        } catch (error) {
+            setSync('No se pudieron recuperar resultados locales en la cola: ' + error.message, 'error');
+        }
+    }
+
+    function createSyncQueue() {
+        if (sync || !window.PaceTrackResultSync) return;
+        sync = window.PaceTrackResultSync.create({
+            sessionId: sessionId,
+            storageKey: queueStorageKey,
+            connected: false,
+            transport: function (targetSession, result) {
+                if (!firebaseReady || !database) return Promise.reject(new Error('Firebase todavía no está disponible.'));
+                const safeResult = Object.assign({}, result);
+                delete safeResult.syncState;
+                delete safeResult.attempts;
+                delete safeResult.lastError;
+                return database.ref(`sessions/${targetSession}/results/${result.id}`).set(safeResult);
+            },
+            onStatus: function (event) {
+                if (event.state === 'confirmed' && event.result) {
+                    const local = recordedLaps.find(item => item.id === event.result.id);
+                    if (local) {
+                        local.syncState = 'confirmed';
+                        saveLocal();
                     }
                 }
+                updateSyncSummary(event);
             }
+        });
+    }
+
+    function setupFirebase(manualRetry) {
+        if (!sessionId) {
+            setSync('Sesión local: no se ha recibido un QR. Los resultados quedan en este dispositivo.', 'local');
+            return;
+        }
+        try {
+            const retryButton = byId('retry-sync-button');
+            retryButton.hidden = false;
+            if (!window.PaceTrackResultSync) {
+                setSync('Módulo de sincronización no disponible; los resultados permanecen guardados localmente.', 'error');
+                return;
+            }
+            createSyncQueue();
+            reconcileLocalResults();
+            if (!window.firebase || !firebase.database || !firebase.initializeApp) {
+                firebaseReady = false;
+                setSync('Firebase no está disponible. Los resultados de esta sesión permanecen en la cola local.', 'error');
+                return;
+            }
+            if (!firebase.apps || !firebase.apps.length) firebase.initializeApp(firebaseConfig);
+            database = firebase.database();
+            firebaseReady = true;
+            if (!firebaseConnectionRef) firebaseConnectionRef = database.ref('.info/connected');
+            attachFirebaseConnection();
+            attachNetworkListeners();
+            if (manualRetry) sync.retry();
+            else sync.flush();
+        } catch (error) {
+            firebaseReady = false;
+            setSync('No se pudo iniciar Firebase: ' + error.message + '. El guardado local sigue activo.', 'error');
         }
     }
-    
-    previousFrameData = new ImageData(
-        new Uint8ClampedArray(currentFrameData.data),
-        currentFrameData.width,
-        currentFrameData.height
-    );
-    
-    if (timerState === 'running') {
-        const elapsed = performance.now() - startTime;
-        timerDisplay.textContent = formatTime(elapsed);
-    } else {
-        timerDisplay.textContent = formatTime(lastDisplayedTime);
+
+    function confirmReset() {
+        const currentQueue = sync && sessionId ? sync.getQueue(sessionId) : [];
+        const hasData = recordedLaps.length > 0 || runStartedAt !== null || currentQueue.length > 0;
+        const warning = sessionId
+            ? '¿Borrar el historial local y descartar los envíos pendientes de esta sesión? Los resultados ya confirmados en el PC no se borran. Un envío que haya empezado puede completarse en el servidor aunque se borre aquí.'
+            : '¿Reiniciar el cronómetro y borrar el historial guardado en este dispositivo?';
+        if (hasData && !window.confirm(warning)) return;
+
+        const previousHistory = JSON.stringify(recordedLaps);
+        try {
+            localStorage.setItem(storageKey, '[]');
+        } catch (error) {
+            setSync('No se pudo borrar el historial local: ' + error.message, 'error');
+            statusMessage.textContent = 'No se reinició la sesión porque no se pudo guardar el cambio en el dispositivo.';
+            return;
+        }
+        let clearedQueue = { removedIds: [], inFlightIds: [], preservedConfirmedIds: [] };
+        if (sync && sessionId) {
+            try {
+                clearedQueue = sync.clearSession(sessionId);
+            } catch (error) {
+                try { localStorage.setItem(storageKey, previousHistory); } catch (_) {}
+                setSync('No se pudo limpiar la cola de esta sesión: ' + error.message, 'error');
+                statusMessage.textContent = 'No se reinició la sesión; la cola de sincronización no pudo limpiarse.';
+                return;
+            }
+        }
+        if (runtime) runtime.stop();
+        runStartedAt = null;
+        currentMethod = null;
+        lastElapsed = 0;
+        recordedLaps = [];
+        displayLaps();
+        timerDisplay.textContent = '00:00.000';
+        timerDisplay.style.color = '#e2e8f0';
+        statusMessage.textContent = 'Historial local reiniciado. Elige cámara o modo manual para continuar.';
+        updateTriggerLabel();
+        if (clearedQueue.inFlightIds.length) {
+            setSync('Historial local borrado. Un envío ya iniciado podría aparecer en el PC; los resultados confirmados no se pueden borrar desde aquí.', 'pending');
+        } else if (clearedQueue.preservedConfirmedIds.length) {
+            setSync('Historial local borrado. Los resultados ya confirmados siguen visibles en el PC.', 'confirmed');
+        } else if (sessionId) {
+            setSync('Historial local y envíos pendientes de esta sesión borrados.', 'local');
+        }
+        if (runtime) runtime.prepare();
     }
-    
-    animationFrameId = requestAnimationFrame(detectMovement);
-}
 
-resetButton.addEventListener('click', () => {
-    cancelAnimationFrame(animationFrameId);
-    clearTimeout(calibrationTimeoutId);
-    try {
-        const s = video && video.srcObject;
-        if (s && s.getTracks) s.getTracks().forEach(t => t.stop());
-        if (video) video.srcObject = null;
-    } catch (e) {}
-    
-    timerState = 'stopped';
-    startTime = 0;
-    lastDisplayedTime = 0;
-    
-    recordedLaps = [];
-    saveLaps();
-    displayLaps();
-    
-    timerDisplay.textContent = '00:00.000';
-    statusMessage.textContent = 'Iniciando cámara...';
-    timerDisplay.style.color = '#e2e8f0';
-    
-    previousFrameData = null;
-    lastDetectionTime = 0;
-    
-    setupCamera();
-});
-
-sensitivitySlider.addEventListener('input', (event) => {
-    detectionThreshold = parseInt(event.target.value);
-    statusMessage.textContent = `Sensibilidad: ${detectionThreshold}. Ajusta para tu entorno.`;
-    console.log(`Sensibilidad ajustada a: ${detectionThreshold}. Prueba a moverte por la línea. Si no detecta, baja la sensibilidad. Si detecta demasiado, súbela. Asegúrate de buena iluminación y un fondo uniforme.`);
-});
-
-messageBoxOkButton.addEventListener('click', () => {
-    messageBox.style.display = 'none';
-});
-
-window.addEventListener('load', () => {
-    if (!sessionId) {
-        showMessageBox('No se proporcionó un ID de sesión. Por favor, escanea el código QR desde la página de resultados.');
+    function exportHistory() {
+        const rows = [['Paso', 'Milisegundos', 'Tiempo', 'Método', 'Fecha', 'ID', 'Sincronización']];
+        recordedLaps.forEach((result, index) => rows.push([
+            index + 1,
+            Number(result.elapsed),
+            formatTime(result.elapsed),
+            result.method || 'legacy',
+            result.timestamp || '',
+            result.id || '',
+            result.syncState || 'local'
+        ]));
+        const csv = rows.map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+        const blob = new Blob(['\ufeff', csv], { type: 'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `pacetrack-historial-${sessionId || 'local'}.csv`;
+        anchor.click();
+        URL.revokeObjectURL(url);
     }
-    setupCamera();
-    loadLaps();
-});
 
-window.addEventListener('resize', () => {
-    if (video.videoWidth && video.videoHeight) {
-        overlayCanvas.width = video.videoWidth;
-        overlayCanvas.height = video.videoHeight;
-        hiddenCanvas.width = video.videoWidth;
-        hiddenCanvas.height = video.videoHeight;
-        
-        overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-        overlayCtx.drawImage(video, 0, 0, overlayCanvas.width, overlayCanvas.height);
-        drawDetectionLine();
+    function installRuntime() {
+        if (window.PaceTrackTiming && typeof window.PaceTrackTiming.create === 'function') {
+            runtime = window.PaceTrackTiming.create({
+                mode: 'mobilepc',
+                video: video,
+                canvas: overlayCanvas,
+                status: statusMessage,
+                display: timerDisplay,
+                slider: sensitivitySlider,
+                mount: byId('app-container'),
+                onTrigger: onTrigger,
+                onFrame: updateClock,
+                onInterrupt: onInterrupt,
+                onReady: function (event) {
+                    statusMessage.textContent = event && event.method === 'manual'
+                        ? 'Modo manual listo. Pulsa Iniciar cuando estés preparado.'
+                        : 'Detección lista. El siguiente paso iniciará el cronómetro.';
+                    updateTriggerLabel();
+                },
+                getActivity: function () { return runStartedAt !== null; },
+                hasUnsavedData: function () { return localSaveFailed && recordedLaps.length > 0; }
+            });
+            if (syncStatus) {
+                runtime.setSync(syncStatus.textContent, syncStatus.dataset.kind || 'local');
+                syncStatus.hidden = true;
+            }
+            return;
+        }
+
+        statusMessage.textContent = 'Preparación automática no disponible. El modo manual permanece disponible; no se ha solicitado la cámara.';
+        const fallbackButton = document.createElement('button');
+        fallbackButton.id = 'mobile-manual-trigger';
+        fallbackButton.type = 'button';
+        fallbackButton.textContent = 'Iniciar';
+        byId('controls').appendChild(fallbackButton);
+        fallbackButton.addEventListener('click', () => onTrigger({ now: performance.now(), method: 'manual' }));
+        const fallbackStatus = document.createElement('p');
+        fallbackStatus.textContent = 'El componente de cámara no está disponible en esta página. Puedes cronometrar manualmente.';
+        byId('video-container').appendChild(fallbackStatus);
+        window.addEventListener('beforeunload', handleFallbackBeforeUnload);
+        function frame(now) {
+            updateClock(now);
+            fallbackFrame = requestAnimationFrame(frame);
+        }
+        fallbackFrame = requestAnimationFrame(frame);
     }
-});
+
+    loadLocal();
+    installRuntime();
+    setupFirebase();
+    resetButton.addEventListener('click', confirmReset);
+    byId('export-local-results').addEventListener('click', exportHistory);
+    byId('retry-sync-button').addEventListener('click', () => {
+        try {
+            setupFirebase(true);
+        } catch (error) {
+            setSync('No se pudo reintentar el envío: ' + error.message, 'error');
+        }
+    });
+    window.addEventListener('pagehide', event => {
+        // PaceTrackTiming owns camera teardown and must deliver interruption before BFCache suspension.
+        if (fallbackFrame) {
+            cancelAnimationFrame(fallbackFrame);
+            fallbackFrame = 0;
+            fallbackPaused = true;
+        }
+        detachFirebaseConnection();
+        if (sync) {
+            if (event.persisted) sync.setConnected(false);
+            else sync.dispose();
+        }
+        if (!event.persisted) {
+            detachNetworkListeners();
+        }
+    });
+    window.addEventListener('pageshow', event => {
+        if (!event.persisted) return;
+        attachFirebaseConnection();
+        if (sync) sync.flush();
+        if (fallbackPaused && !runtime) {
+            fallbackPaused = false;
+            function frame(now) {
+                updateClock(now);
+                fallbackFrame = requestAnimationFrame(frame);
+            }
+            fallbackFrame = requestAnimationFrame(frame);
+        }
+    });
+})();

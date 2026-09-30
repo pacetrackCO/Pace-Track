@@ -25,3 +25,11 @@ The refresh selector opens all eight existing pages. For inspection, the refresh
 Contact submissions and external Firebase signaling/results synchronization are explicitly disabled in the preview copies. Local camera-based timing still requires permission and a compatible secure browser. Do not treat device synchronization as tested or operational in this preview.
 
 When updating the website from any later design reference, retain original event hooks and services rather than copying preview-only service disabling. Timer text colors are operational status indicators controlled by the timer scripts; do not override them with `!important` in shared styles.
+
+## Timing verification
+
+The original timer pages use the shared preparation/camera runtime in `timing/`, with mode-specific participant, lap and synchronization adapters. Read `timing/README.md` for operation, interruption rules, repeatable checks and the honest compatibility matrix. Physical Android/iOS camera and live two-device tests remain distinct from the simulated browser checks.
+
+Run `node --test tests/*.test.cjs` for timing, persistence and synchronization regressions. With `PaceTrack` running, use `python3 tests/run-browser-checks.py` for the real-time Chromium fixture; its camera, storage and external services are mocked and it must never write test results to live Firebase.
+
+Timing scripts/styles and their adapters use matching `v` query parameters in the five timer pages. Update those parameters together when changing these assets for release: the existing Netlify configuration caches JavaScript and CSS for a day.

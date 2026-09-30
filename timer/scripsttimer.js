@@ -1,695 +1,714 @@
-// === VARIABLES ===
-const video = document.getElementById('video');
-const overlayCanvas = document.getElementById('overlay-canvas');
-const timerDisplay = document.getElementById('timer-display');
-const statusMessage = document.getElementById('status-message');
-const resetButton = document.getElementById('reset-button');
-const sensitivitySlider = document.getElementById('sensitivity-slider');
-const messageBox = document.getElementById('message-box');
-const messageContent = document.getElementById('message-content');
-const messageBoxOkButton = document.getElementById('message-box-ok');
-const lapsContainer = document.getElementById('laps-container');
-const lapsList = document.getElementById('laps-list');
-const hiddenCanvas = document.createElement('canvas');
-const hiddenCtx = hiddenCanvas.getContext('2d', { willReadFrequently: true });
-const overlayCtx = overlayCanvas.getContext('2d');
+(() => {
+  'use strict';
 
-const beep = new Audio('beep.mp3');
-beep.preload = 'auto';
-let audioUnlocked = false;
-function unlockAudio() {
-    if (audioUnlocked) return;
-    audioUnlocked = true;
-    try {
-        const p = beep.play();
-        if (p && p.catch) p.catch(() => {});
-        beep.pause();
-        beep.currentTime = 0;
-    } catch (e) {}
-}
-document.addEventListener('pointerdown', unlockAudio, { once: true });
-function playBeep() {
-    try {
-        beep.currentTime = 0;
-        const p = beep.play();
-        if (p && p.catch) p.catch(() => {});
-    } catch (e) {}
-}
+  const video = document.getElementById('video');
+  const overlayCanvas = document.getElementById('overlay-canvas');
+  const timerDisplay = document.getElementById('timer-display');
+  const statusMessage = document.getElementById('status-message');
+  const resetButton = document.getElementById('reset-button');
+  const sensitivitySlider = document.getElementById('sensitivity-slider');
+  const lapsContainer = document.getElementById('laps-container');
+  const lapsList = document.getElementById('laps-list');
+  const messageBox = document.getElementById('message-box');
+  const messageContent = document.getElementById('message-content');
+  const messageBoxOkButton = document.getElementById('message-box-ok');
+  const controls = document.getElementById('controls');
+  const historyHeading = document.createElement('h4');
+  const historyList = document.createElement('ul');
+  let historySection = null;
 
-// === ESTADO ===
-let runners = [];
-let currentRunnerIndex = 0;
-let currentRound = 1;
-let timerState = 'stopped'; // stopped, running, paused
-let startTime = 0;
-let lastDisplayedTime = 0;
-let previousFrameData = null;
-let detectionThreshold = 100;
-let lastDetectionTime = 0;
-const detectionCooldown = 500;
-let isCalibrating = true;
-let calibrationSamples = [];
-const calibrationDuration = 3000;
-let recordedLaps = [];
-// === NUEVO: Estado para cooldown entre corredores ===
-let cooldownActive = false;
-let cooldownEndTime = 0;
-const cooldownDuration = 3000; // 3 segundos
-
-// === NUEVO: Almacenar tiempos por ronda ===
-let roundLaps = []; // Tiempos de la ronda actual
-
-// === UTILIDADES ===
-function formatTime(ms) {
-    const m = Math.floor(ms / 60000);
-    const s = Math.floor((ms % 60000) / 1000);
-    const c = Math.floor(ms % 1000);
-    return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${String(c).padStart(3,'0')}`;
-}
-
-function showMessageBox(msg) {
-    messageContent.textContent = msg;
-    messageBox.style.display = 'block';
-}
-
-// Claves con espacio de nombres para no chocar con loop/sector/PC en el mismo dominio
-const LS_KEYS = {
+  const LS_KEYS = {
     laps: 'pt_timer_recordedLaps',
     runners: 'pt_timer_runners',
     index: 'pt_timer_currentRunnerIndex',
     round: 'pt_timer_currentRound',
-    roundLaps: 'pt_timer_roundLaps'
-};
-function saveLaps() {
-    try {
-        localStorage.setItem(LS_KEYS.laps, JSON.stringify(recordedLaps));
-        localStorage.setItem(LS_KEYS.runners, JSON.stringify(runners));
-        localStorage.setItem(LS_KEYS.index, String(currentRunnerIndex));
-        localStorage.setItem(LS_KEYS.round, String(currentRound));
-        localStorage.setItem(LS_KEYS.roundLaps, JSON.stringify(roundLaps));
-    } catch (e) {}
-}
+    roundLaps: 'pt_timer_roundLaps',
+    awaitingRound: 'pt_timer_awaitingRound'
+  };
+  const beep = new Audio('beep.mp3');
+  beep.preload = 'auto';
+  let audioUnlocked = false;
+  let runners = [];
+  let currentRunnerIndex = 0;
+  let currentRound = 1;
+  let recordedLaps = [];
+  let roundLaps = [];
+  let timerState = 'stopped';
+  let startTime = 0;
+  let lastDisplayedTime = 0;
+  let activeMethod = null;
+  let startMethod = null;
+  let awaitingNextRound = false;
+  let runtime = null;
+  let booted = false;
+  let storageWarning = '';
+  let storageReadFailed = false;
 
-function loadLaps() {
+  function updateStorageSync() {
+    if (runtime && typeof runtime.setSync === 'function') {
+      runtime.setSync(storageWarning || 'Resultados en este dispositivo', storageWarning ? 'error' : 'local');
+    } else if (storageWarning) {
+      statusMessage.textContent = storageWarning;
+    }
+  }
+
+  function warnStorage(message) {
+    storageWarning = message;
+    updateStorageSync();
+  }
+
+  function formatTime(ms) {
+    const value = Math.max(0, Number(ms) || 0);
+    const minutes = Math.floor(value / 60000);
+    const seconds = Math.floor((value % 60000) / 1000);
+    const millis = Math.floor(value % 1000);
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(millis).padStart(3, '0')}`;
+  }
+
+  function showMessageBox(message) {
+    messageContent.textContent = message;
+    messageBox.style.display = 'block';
+  }
+
+  function unlockAudio() {
+    if (audioUnlocked) return;
+    audioUnlocked = true;
     try {
-        // Migrar claves antiguas sin prefijo si existen
+      const playback = beep.play();
+      if (playback && playback.catch) playback.catch(() => {});
+      beep.pause();
+      beep.currentTime = 0;
+    } catch (error) {}
+  }
+
+  function playBeep() {
+    try {
+      beep.currentTime = 0;
+      const playback = beep.play();
+      if (playback && playback.catch) playback.catch(() => {});
+    } catch (error) {}
+  }
+  document.addEventListener('pointerdown', unlockAudio, { once: true });
+
+  function saveLaps() {
+    if (storageReadFailed) return false;
+    try {
+      localStorage.setItem(LS_KEYS.laps, JSON.stringify(recordedLaps));
+      localStorage.setItem(LS_KEYS.runners, JSON.stringify(runners));
+      localStorage.setItem(LS_KEYS.index, String(currentRunnerIndex));
+      localStorage.setItem(LS_KEYS.round, String(currentRound));
+      localStorage.setItem(LS_KEYS.roundLaps, JSON.stringify(roundLaps));
+      localStorage.setItem(LS_KEYS.awaitingRound, String(awaitingNextRound));
+      if (storageWarning) {
+        storageWarning = '';
+        updateStorageSync();
+      }
+      return true;
+    } catch (error) {
+      warnStorage('No se pudo guardar el historial. Exporta antes de salir; la recuperación local no está confirmada.');
+      return false;
+    }
+  }
+
+  function validOriginalRecords(value) {
+    return Array.isArray(value) ? value.filter(record =>
+      record && typeof record === 'object' && Number.isFinite(Number(record.time))
+    ) : [];
+  }
+
+  function normalizeOriginalRecord(record, fallbackRound) {
+    let runnerIndex = record.runnerIndex !== null && record.runnerIndex !== '' &&
+      Number.isInteger(Number(record.runnerIndex)) && Number(record.runnerIndex) >= 0
+      ? Number(record.runnerIndex) : null;
+    const savedName = typeof record.runnerName === 'string' ? record.runnerName : '';
+    if (runnerIndex === null && savedName) {
+      const matches = runners.map((runner, index) => ({ runner, index }))
+        .filter(item => item.runner.name.trim().toLocaleLowerCase() === savedName.trim().toLocaleLowerCase());
+      if (matches.length === 1) runnerIndex = matches[0].index;
+    }
+    const knownRunner = runnerIndex === null ? null : runners[runnerIndex];
+    const round = Number.isInteger(Number(record.round)) && Number(record.round) > 0
+      ? Number(record.round) : fallbackRound;
+    return {
+      ...record,
+      time: Number(record.time),
+      runnerName: savedName
+        ? savedName
+        : (knownRunner ? knownRunner.name : ''),
+      ...(runnerIndex === null ? {} : { runnerIndex }),
+      round,
+      method: record.method || 'legacy'
+    };
+  }
+
+  function sameRecordIdentity(first, second) {
+    if (Number(first.round) !== Number(second.round) || Number(first.time) !== Number(second.time)) return false;
+    const firstIndex = Number.isInteger(first.runnerIndex) ? first.runnerIndex : null;
+    const secondIndex = Number.isInteger(second.runnerIndex) ? second.runnerIndex : null;
+    if (firstIndex !== null && secondIndex !== null) return firstIndex === secondIndex;
+    const firstName = String(first.runnerName || '').trim().toLocaleLowerCase();
+    const secondName = String(second.runnerName || '').trim().toLocaleLowerCase();
+    const identityName = firstName || secondName;
+    if (identityName && runners.filter(runner =>
+      runner.name.trim().toLocaleLowerCase() === identityName
+    ).length > 1) return false;
+    return Boolean(firstName && secondName && firstName === secondName);
+  }
+
+  function dedupeRecords(records) {
+    const unique = [];
+    records.forEach(record => {
+      const duplicateIndex = unique.findIndex(existing => sameRecordIdentity(existing, record));
+      if (duplicateIndex < 0) unique.push(record);
+      else unique[duplicateIndex] = { ...unique[duplicateIndex], ...record };
+    });
+    return unique;
+  }
+
+  function loadLaps() {
+    let loaded = true;
+    try {
+      const storedRunners = JSON.parse(localStorage.getItem(LS_KEYS.runners) || '[]');
+      if (Array.isArray(storedRunners)) {
+        runners = storedRunners.filter(runner => runner && typeof runner.name === 'string')
+          .map((runner, index) => ({ id: runner.id || index + 1, name: runner.name }));
+      }
+      if (!runners.length) runners = [{ id: 1, name: 'Corredor 1' }];
+      const index = Number.parseInt(localStorage.getItem(LS_KEYS.index), 10);
+      const round = Number.parseInt(localStorage.getItem(LS_KEYS.round), 10);
+      currentRunnerIndex = Number.isFinite(index) && index >= 0 ? index : 0;
+      currentRound = Number.isFinite(round) && round > 0 ? round : 1;
+
+      const current = localStorage.getItem(LS_KEYS.laps);
+      if (current) {
+        recordedLaps = validOriginalRecords(JSON.parse(current));
+      } else {
+        // The old shared key was also used by Loop; only object records belong here.
         const legacy = localStorage.getItem('recordedLaps');
-        if (legacy && !localStorage.getItem(LS_KEYS.laps)) {
-            localStorage.setItem(LS_KEYS.laps, legacy);
-            const lr = localStorage.getItem('runners'); if (lr) localStorage.setItem(LS_KEYS.runners, lr);
-            const li = localStorage.getItem('currentRunnerIndex'); if (li) localStorage.setItem(LS_KEYS.index, li);
-            const lro = localStorage.getItem('currentRound'); if (lro) localStorage.setItem(LS_KEYS.round, lro);
-            const lrl = localStorage.getItem('roundLaps'); if (lrl) localStorage.setItem(LS_KEYS.roundLaps, lrl);
+        if (legacy) {
+          recordedLaps = validOriginalRecords(JSON.parse(legacy));
         }
-        const data = localStorage.getItem(LS_KEYS.laps);
-        if (data) recordedLaps = JSON.parse(data);
-        const r = localStorage.getItem(LS_KEYS.runners);
-        if (r) runners = JSON.parse(r);
-        const i = localStorage.getItem(LS_KEYS.index);
-        if (i !== null) currentRunnerIndex = parseInt(i) || 0;
-        const round = localStorage.getItem(LS_KEYS.round);
-        if (round !== null) currentRound = parseInt(round) || 1;
-        const rl = localStorage.getItem(LS_KEYS.roundLaps);
-        if (rl) roundLaps = JSON.parse(rl);
-    } catch (e) {}
+      }
+      const storedRound = JSON.parse(localStorage.getItem(LS_KEYS.roundLaps) || '[]');
+      const runnersPerRound = Math.max(1, runners.length);
+      const historical = validOriginalRecords(recordedLaps).map((record, recordIndex) =>
+        normalizeOriginalRecord(record, Math.floor(recordIndex / runnersPerRound) + 1)
+      );
+      roundLaps = validOriginalRecords(storedRound).map(record =>
+        normalizeOriginalRecord(record, currentRound)
+      );
+      roundLaps = dedupeRecords(roundLaps);
+      // Older Original releases only persisted the active round in roundLaps.
+      // Merge it into the export/history set, deduplicating records also present
+      // in recordedLaps from newer releases.
+      recordedLaps = dedupeRecords([...historical, ...roundLaps]);
+      awaitingNextRound = localStorage.getItem(LS_KEYS.awaitingRound) === 'true';
+    } catch (error) {
+      // Keep valid in-memory defaults; malformed historical data is never used to start a run.
+      recordedLaps = Array.isArray(recordedLaps) ? recordedLaps : [];
+      roundLaps = Array.isArray(roundLaps) ? roundLaps : [];
+      loaded = false;
+      storageReadFailed = true;
+      warnStorage('No se pudo leer el historial guardado. Exporta los resultados disponibles antes de salir; la recuperación local no está confirmada.');
+    }
+    if (runners.length && currentRunnerIndex >= runners.length) currentRunnerIndex = 0;
+    if (!runners.length) runners = [{ id: 1, name: 'Corredor 1' }];
+    if (loaded) saveLaps();
     displayLaps();
-}
+  }
 
-// NUEVA FUNCIÓN: Mostrar lista de corredores (SOLO TIEMPOS DE RONDA ACTUAL)
-function displayRunnersList() {
-    lapsList.innerHTML = '';
-    if (runners.length === 0) {
-        lapsContainer.style.display = 'none';
-        return;
-    }
-    lapsContainer.style.display = 'block';
-    
-    // Mostrar todos los corredores, incluso los que aún no han pasado
+  function displayLaps() {
+    displayRunnersList();
+  }
+
+  function measurementLabel(method) {
+    if (method === 'automatic') return 'Automático';
+    if (method === 'manual') return 'Manual';
+    if (method === 'mixta') return 'Mixto';
+    return 'Anterior';
+  }
+
+  function ensureHistorySection() {
+    if (historySection) return;
+    historySection = document.createElement('section');
+    historySection.id = 'original-history-section';
+    historyHeading.textContent = 'Historial reciente';
+    historyHeading.id = 'original-history-heading';
+    historyList.id = 'original-history-list';
+    historyList.setAttribute('aria-labelledby', historyHeading.id);
+    historySection.append(historyHeading, historyList);
+    lapsContainer.appendChild(historySection);
+  }
+
+  function displayRunnersList() {
+    // Original mode's primary list remains the current round order.
+    if (!runners.length) return;
+    ensureHistorySection();
+    const roundHeading = lapsContainer.querySelector('h3');
+    if (roundHeading) roundHeading.textContent = 'Ronda actual';
+    lapsList.replaceChildren();
     runners.forEach((runner, index) => {
-        const li = document.createElement('li');
-
-        // Buscar si este corredor ya tiene un tiempo registrado EN LA RONDA ACTUAL
-        // Se busca por índice (no por nombre) para soportar nombres duplicados
-        const lapRecord = roundLaps.find(lap => lap.runnerIndex === index);
-        
-        if (lapRecord) {
-            // Ya pasó - mostrar tiempo
-            li.innerHTML = `<span>${runner.name}:</span> <span>${formatTime(lapRecord.time)}</span>`;
-            li.style.color = '#10b981'; // Verde para los que ya pasaron
-            li.style.fontWeight = '600';
-        } else if (index === currentRunnerIndex && timerState === 'running') {
-            // Es el corredor actual y está corriendo
-            li.innerHTML = `<span>${runner.name}:</span> <span>→ EN CURSO</span>`;
-            li.style.color = '#3b82f6'; // Azul para el actual
-            li.style.fontWeight = '700';
-        } else {
-            // Aún no ha pasado
-            li.innerHTML = `<span>${runner.name}:</span> <span>--:--.---</span>`;
-            li.style.color = '#9ca3af'; // Gris para pendientes
-        }
-        
-        lapsList.appendChild(li);
+      const item = document.createElement('li');
+      const name = document.createElement('span');
+      name.textContent = `${runner.name}:`;
+      const record = roundLaps.find(lap => lap.runnerIndex === index);
+      const result = document.createElement('span');
+      result.textContent = record ? formatTime(record.time) :
+        (index === currentRunnerIndex && timerState === 'running' ? '→ EN CURSO' : '--:--.---');
+      const method = document.createElement('span');
+      method.className = 'timing-method-badge';
+      method.textContent = record ? measurementLabel(record.method) : '';
+      if (record) method.title = `Método de medición: ${measurementLabel(record.method)}`;
+      if (record) item.style.color = '#10b981';
+      else if (index === currentRunnerIndex && timerState === 'running') item.style.color = '#60a5fa';
+      item.append(name, result, method);
+      lapsList.appendChild(item);
     });
+    const archived = recordedLaps.filter(record =>
+      !roundLaps.some(currentRecord => sameRecordIdentity(currentRecord, record))
+    ).slice(-8).reverse();
+    historyList.replaceChildren();
+    archived.forEach(record => {
+      const item = document.createElement('li');
+      const label = document.createElement('span');
+      label.textContent = `${record.runnerName || 'Corredor'} · Ronda ${record.round || '—'}`;
+      const time = document.createElement('span');
+      time.textContent = formatTime(record.time);
+      const method = document.createElement('span');
+      method.className = 'timing-method-badge';
+      method.textContent = measurementLabel(record.method);
+      method.title = `Método de medición: ${measurementLabel(record.method)}`;
+      item.append(label, time, method);
+      historyList.appendChild(item);
+    });
+    historySection.hidden = archived.length === 0;
+    lapsContainer.style.display = 'block';
     lapsList.scrollTop = lapsList.scrollHeight;
-}
+  }
 
-// FUNCIÓN ACTUALIZADA: Reemplazar displayLaps
-function displayLaps() {
-    displayRunnersList(); // Ahora usamos la nueva función
-}
+  function setTriggerLabel(text) {
+    if (runtime && typeof runtime.setTriggerLabel === 'function') runtime.setTriggerLabel(text);
+  }
 
-function drawLine(color = 'rgba(255,0,0,0.7)', flash = false) {
-    overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-    overlayCtx.drawImage(video, 0, 0);
-    const x = overlayCanvas.width * 0.5;
-    const w = overlayCanvas.width * 0.05;
-    overlayCtx.strokeStyle = color;
-    overlayCtx.lineWidth = 6;
-    overlayCtx.beginPath();
-    overlayCtx.moveTo(x - w/2, 0); overlayCtx.lineTo(x - w/2, overlayCanvas.height);
-    overlayCtx.moveTo(x + w/2, 0); overlayCtx.lineTo(x + w/2, overlayCanvas.height);
-    overlayCtx.stroke();
-    if (flash) {
-        overlayCanvas.style.filter = 'brightness(1.5)';
-        setTimeout(() => overlayCanvas.style.filter = '', 200);
+  function updateReadyStatus(event = {}) {
+    const runner = runners[currentRunnerIndex] || runners[0];
+    const method = event.method || (runtime && runtime.method) || 'automatic';
+    const methodLabel = method === 'manual' ? 'Manual' : 'Automático';
+    statusMessage.textContent = awaitingNextRound
+      ? `Original · ${methodLabel} · Ronda ${currentRound - 1} completada. Confirma para continuar.`
+      : `Original · ${methodLabel} · Ronda ${currentRound} · Listo: ${runner ? runner.name : 'Corredor 1'}`;
+    setTriggerLabel(timerState === 'running' ? 'Parar' : 'Iniciar');
+  }
+
+  function mergedMethod(previous, next) {
+    if (!previous) return next || 'manual';
+    return previous === next ? previous : 'mixta';
+  }
+
+  function onTrigger(event) {
+    if (awaitingNextRound) {
+      statusMessage.textContent = 'Confirma la ronda completada antes de continuar.';
+      return;
     }
-}
+    const now = Number(event && event.now);
+    if (!Number.isFinite(now)) return;
+    const method = event.method === 'automatic' ? 'automatic' : 'manual';
+    playBeep();
+    if (timerState !== 'running') {
+      startTime = now;
+      timerState = 'running';
+      startMethod = method;
+      activeMethod = method;
+      lastDisplayedTime = 0;
+      statusMessage.textContent = `Ronda ${currentRound} · Corriendo: ${runners[currentRunnerIndex].name}`;
+      timerDisplay.style.color = '#ff6b6b';
+      displayRunnersList();
+      setTriggerLabel('Parar');
+      return;
+    }
 
-function vibrate(p) { if (navigator.vibrate) navigator.vibrate(p); }
-
-// === NUEVA FUNCIÓN: Iniciar cooldown entre corredores ===
-function startCooldown() {
-    cooldownActive = true;
-    cooldownEndTime = performance.now() + cooldownDuration;
-    timerState = 'paused';
-    statusMessage.textContent = `Esperando ${cooldownDuration/1000}s para siguiente corredor...`;
-    timerDisplay.style.color = 'orange';
-    
-    // Actualizar la lista durante el cooldown
-    displayRunnersList();
-    
-    // Actualizar el display durante el cooldown
-    const updateCooldownDisplay = () => {
-        if (cooldownActive) {
-            const remaining = cooldownEndTime - performance.now();
-            if (remaining > 0) {
-                timerDisplay.textContent = formatTime(remaining);
-                requestAnimationFrame(updateCooldownDisplay);
-            } else {
-                // Cooldown completado
-                cooldownActive = false;
-                timerState = 'stopped';
-                const nextRunner = runners[currentRunnerIndex];
-                statusMessage.textContent = `Listo: ${nextRunner.name}`;
-                timerDisplay.textContent = '00:00.000';
-                timerDisplay.style.color = '#e2e8f0'; // Color normal
-                lastDisplayedTime = 0;
-                // Actualizar lista para mostrar siguiente corredor como pendiente
-                displayRunnersList();
-            }
-        }
+    const elapsed = Math.max(0, now - startTime);
+    const methodForRecord = mergedMethod(startMethod, method);
+    const runner = runners[currentRunnerIndex];
+    const result = {
+      time: elapsed,
+      runnerName: runner.name,
+      runnerIndex: currentRunnerIndex,
+      round: currentRound,
+      method: methodForRecord,
+      timestamp: new Date().toISOString()
     };
-    updateCooldownDisplay();
-}
-
-// === NUEVA FUNCIÓN: Iniciar nueva ronda ===
-function startNewRound() {
-    // Guardar todos los tiempos en recordedLaps (para PDF)
-    recordedLaps.push(...roundLaps);
-    
-    // Limpiar roundLaps para la nueva ronda
-    roundLaps = [];
-    
-    // Reiniciar índice de corredor
-    currentRunnerIndex = 0;
-    
-    // Actualizar estado
+    recordedLaps.push(result);
+    roundLaps.push(result);
+    lastDisplayedTime = elapsed;
     timerState = 'stopped';
-    statusMessage.textContent = `Ronda ${currentRound} - Listo: ${runners[0].name}`;
-    timerDisplay.textContent = '00:00.000';
+    startTime = 0;
+    activeMethod = null;
+    startMethod = null;
+    saveLaps();
+    const isLast = currentRunnerIndex === runners.length - 1;
+    if (isLast) {
+      awaitingNextRound = true;
+      currentRound += 1;
+      statusMessage.textContent = `Ronda ${currentRound - 1} completada · ${runner.name}: ${formatTime(elapsed)} (${methodForRecord === 'automatic' ? 'automático' : methodForRecord === 'manual' ? 'manual' : 'mixto'})`;
+      showRoundComplete();
+    } else {
+      currentRunnerIndex += 1;
+      const nextRunner = runners[currentRunnerIndex];
+      statusMessage.textContent = `${runner.name}: ${formatTime(elapsed)} · Siguiente: ${nextRunner.name}. Espera visible: 500 ms entre eventos.`;
+      setTriggerLabel('Iniciar');
+    }
+    saveLaps();
+    displayRunnersList();
+    timerDisplay.textContent = formatTime(elapsed);
     timerDisplay.style.color = '#e2e8f0';
-    
-    // Guardar y mostrar lista actualizada
-    saveLaps();
-    displayRunnersList();
-}
+  }
 
-// === FUNCIONES PARA EXCEL ===
-function setupWithExcel() {
-    document.getElementById('setup-modal').style.display = 'none';
-    document.getElementById('excel-modal').style.display = 'flex';
-    
-    // Limpiar preview anterior
-    document.getElementById('excel-file').value = '';
-    document.getElementById('excel-preview').style.display = 'none';
-    document.getElementById('names-list').innerHTML = '';
-}
+  function showRoundComplete() {
+    messageContent.textContent = `¡Ronda ${currentRound - 1} completada! Todos los corredores han pasado. Pulsa OK para iniciar la ronda ${currentRound}.`;
+    messageBox.style.display = 'block';
+    messageBoxOkButton.onclick = () => {
+      messageBox.style.display = 'none';
+      roundLaps = [];
+      currentRunnerIndex = 0;
+      awaitingNextRound = false;
+      timerDisplay.textContent = '00:00.000';
+      timerDisplay.style.color = '#e2e8f0';
+      saveLaps();
+      displayRunnersList();
+      updateReadyStatus();
+    };
+  }
 
-function processExcelFile() {
-    const fileInput = document.getElementById('excel-file');
-    const preview = document.getElementById('excel-preview');
-    const namesList = document.getElementById('names-list');
-    
-    if (!fileInput.files.length) {
-        showMessageBox('Por favor seleccione un archivo Excel');
-        return;
+  function handleFrame(now) {
+    if (timerState === 'running') {
+      const elapsed = Math.max(0, now - startTime);
+      timerDisplay.textContent = formatTime(elapsed);
+      timerDisplay.style.color = elapsed < 500 ? '#ff6b6b' : '#00d4ff';
+    } else if (!awaitingNextRound) {
+      timerDisplay.textContent = formatTime(lastDisplayedTime);
     }
-    
-    const file = fileInput.files[0];
-    const reader = new FileReader();
-    
-    reader.onload = function(e) {
-        try {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            
-            // Tomar la primera hoja
-            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-            const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
-            
-            // Extraer nombres (primera columna)
-            const names = [];
-            jsonData.forEach(row => {
-                if (row.length > 0 && row[0] && String(row[0]).trim()) {
-                    names.push(String(row[0]).trim());
-                }
-            });
-            
-            if (names.length === 0) {
-                showMessageBox('No se encontraron nombres en el archivo');
-                return;
-            }
-            
-            // Mostrar preview
-            namesList.innerHTML = '';
-            names.forEach((name, index) => {
-                const li = document.createElement('li');
-                li.textContent = `${index + 1}. ${name}`;
-                namesList.appendChild(li);
-            });
-            
-            preview.style.display = 'block';
-            
-            // Guardar nombres temporalmente
-            window.tempExcelNames = names;
-            
-        } catch (error) {
-            console.error('Error procesando Excel:', error);
-            showMessageBox('Error al procesar el archivo Excel');
-        }
-    };
-    
-    reader.onerror = function() {
-        showMessageBox('Error al leer el archivo');
-    };
-    
-    reader.readAsArrayBuffer(file);
-}
+  }
 
-function saveExcelNames() {
-    if (!window.tempExcelNames || window.tempExcelNames.length === 0) {
-        showMessageBox('No hay nombres para guardar');
-        return;
+  function handleInterrupt(reason) {
+    if (timerState === 'running') {
+      timerState = 'stopped';
+      startTime = 0;
+      lastDisplayedTime = 0;
+      startMethod = null;
+      activeMethod = null;
+      timerDisplay.textContent = '00:00.000';
+      timerDisplay.style.color = '#e2e8f0';
+      displayRunnersList();
+      setTriggerLabel('Iniciar');
     }
-    
-    runners = window.tempExcelNames.map((name, index) => ({
-        id: index + 1,
-        name: name
-    }));
-    
-    currentRunnerIndex = 0;
-    currentRound = 1;
-    recordedLaps = [];
-    roundLaps = [];
-    
-    document.getElementById('excel-modal').style.display = 'none';
-    document.getElementById('app-container').style.display = 'flex';
-    
-    saveLaps();
-    setupCamera();
-    createButtons();
-    statusMessage.textContent = `Ronda 1 - Listo: ${runners[0].name}`;
-    displayRunnersList();
-    
-    // Limpiar datos temporales
-    window.tempExcelNames = null;
-}
+    statusMessage.textContent = `Medición interrumpida (${reason || 'detección perdida'}). El tiempo incompleto se descartó; el historial se conserva.`;
+  }
 
-// === SETUP ===
-function setupWithNames() {
-    document.getElementById('setup-modal').style.display = 'none';
-    document.getElementById('names-modal').style.display = 'flex';
-    document.getElementById('names-input-container').innerHTML = `
-        <div class="name-input-group">
-            <label>Corredor 1:</label>
-            <input type="text" placeholder="Nombre" id="runner-0">
-        </div>
-        <button id="add-runner-btn" class="gradient-blue">+ Agregar</button>
-    `;
-    document.getElementById('add-runner-btn').onclick = () => {
-        const count = document.querySelectorAll('.name-input-group').length;
-        const div = document.createElement('div');
-        div.className = 'name-input-group';
-        div.innerHTML = `<label>Corredor ${count + 1}:</label><input type="text" placeholder="Nombre" id="runner-${count}">`;
-        document.getElementById('add-runner-btn').before(div);
-    };
-}
-
-function saveRunnerNames() {
-    runners = [];
-    document.querySelectorAll('#names-input-container input').forEach((inp, i) => {
-        const name = inp.value.trim() || `Corredor ${i+1}`;
-        runners.push({ id: i+1, name });
+  function ensureRuntime() {
+    if (runtime) return true;
+    if (!window.PaceTrackTiming || typeof window.PaceTrackTiming.create !== 'function') {
+      statusMessage.textContent = 'No se pudo cargar el módulo de cronometraje.';
+      return false;
+    }
+    runtime = window.PaceTrackTiming.create({
+      mode: 'original',
+      video,
+      canvas: overlayCanvas,
+      status: statusMessage,
+      display: timerDisplay,
+      slider: sensitivitySlider,
+      mount: document.getElementById('app-container'),
+      onTrigger,
+      onFrame: handleFrame,
+      onInterrupt: handleInterrupt,
+      onReady: updateReadyStatus,
+      getActivity: () => timerState === 'running',
+      hasUnsavedData: () => Boolean(storageWarning && (recordedLaps.length || roundLaps.length))
     });
-    currentRunnerIndex = 0;
-    currentRound = 1;
-    recordedLaps = []; // Limpiar tiempos anteriores
-    roundLaps = []; // NUEVO: Limpiar tiempos de ronda actual
-    document.getElementById('names-modal').style.display = 'none';
-    document.getElementById('app-container').style.display = 'flex';
-    saveLaps();
-    setupCamera();
-    createButtons();
-    statusMessage.textContent = `Ronda 1 - Listo: ${runners[0].name}`;
-    // MOSTRAR LISTA INMEDIATAMENTE
-    displayRunnersList();
-}
+    if (storageWarning) updateStorageSync();
+    return true;
+  }
 
-function setupWithoutNames() {
-    runners = [{ id: 1, name: 'Corredor 1' }];
-    currentRunnerIndex = 0;
-    currentRound = 1;
-    recordedLaps = []; // Limpiar tiempos anteriores
-    roundLaps = []; // NUEVO: Limpiar tiempos de ronda actual
-    document.getElementById('setup-modal').style.display = 'none';
-    document.getElementById('app-container').style.display = 'flex';
-    saveLaps();
-    setupCamera();
-    createButtons();
-    statusMessage.textContent = `Ronda 1 - Listo: ${runners[0].name}`;
-    // MOSTRAR LISTA INMEDIATAMENTE
-    displayRunnersList();
-}
+  function downloadCSV() {
+    const entries = [...recordedLaps];
+    if (!entries.length) return showMessageBox('No hay tiempos para exportar.');
+    const quote = value => `"${String(value == null ? '' : value).replace(/"/g, '""')}"`;
+    const rows = [['Ronda', 'Corredor', 'Tiempo (ms)', 'Tiempo', 'Método']];
+    entries.forEach(record => rows.push([
+      record.round || '',
+      record.runnerName || '',
+      Math.round(Number(record.time) || 0),
+      formatTime(record.time),
+      record.method || 'legacy'
+    ]));
+    const blob = new Blob(['\uFEFF' + rows.map(row => row.map(quote).join(',')).join('\r\n')], {
+      type: 'text/csv;charset=utf-8'
+    });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `reporte_tiempos_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
 
-function createButtons() {
-if (document.getElementById('download-pdf')) return;
-
-const dl = document.createElement('button');
-dl.id = 'download-pdf';
-dl.textContent = 'Descargar PDF';
-dl.className = 'gradient-purple';
-dl.onclick = () => {
-    if (recordedLaps.length === 0 && roundLaps.length === 0) return showMessageBox('No hay tiempos');
-    if (!window.jspdf || !window.jspdf.jsPDF) return showMessageBox('PDF no disponible sin conexión. Revisa tu internet y recarga.');
+  function downloadPDF() {
+    if (!recordedLaps.length) return showMessageBox('No hay tiempos para exportar.');
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+      showMessageBox('PDF no disponible sin conexión. Usa «Descargar CSV» para guardar los resultados.');
+      return;
+    }
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
-    
-    // Título principal
-    doc.setFontSize(20);
-    doc.text('REPORTE DE TIEMPOS POR RONDAS', 105, 20, { align: 'center' });
-    
-    // Fecha
+    doc.setFontSize(18);
+    doc.text('REPORTE DE TIEMPOS POR RONDAS', 105, 18, { align: 'center' });
     doc.setFontSize(10);
-    doc.text(`Generado: ${new Date().toLocaleDateString()}`, 20, 30);
-    
-    // Calcular número de rondas completadas
-    const lapsPerRound = runners.length;
-    const totalRounds = Math.ceil(recordedLaps.length / lapsPerRound);
-    
-    let y = 45; // Posición vertical inicial
-    
-    // Generar contenido para cada ronda
-    for (let round = 1; round <= totalRounds; round++) {
-        // Calcular índices de los laps para esta ronda
-        const startIndex = (round - 1) * lapsPerRound;
-        const endIndex = Math.min(startIndex + lapsPerRound, recordedLaps.length);
-        const roundLaps = recordedLaps.slice(startIndex, endIndex);
-        
-        // Encabezado de ronda
-        doc.setFontSize(14);
-        doc.setTextColor(0, 51, 153); // Azul para el encabezado
-        doc.text(`Ronda ${round}`, 20, y);
-        y += 8;
-        
-        // Tiempos de la ronda
-        doc.setFontSize(10);
-        doc.setTextColor(0, 0, 0); // Negro para los tiempos
-        
-        roundLaps.forEach((lap, index) => {
-            const position = index + 1;
-            doc.text(`${position}. ${lap.runnerName}: ${formatTime(lap.time)}`, 25, y);
-            y += 6;
-        });
-        
-        y += 8; // Espacio entre rondas
-        
-        // Si no queda espacio en la página, crear nueva página
-        if (y > 270 && round < totalRounds) {
-            doc.addPage();
-            y = 20;
-        }
-    }
-    
-    // Estadísticas finales
-    doc.setFontSize(12);
-    doc.setTextColor(0, 0, 0);
-    doc.text(`Total de rondas: ${totalRounds}`, 20, y + 5);
-    doc.text(`Total de tiempos registrados: ${recordedLaps.length}`, 20, y + 12);
-    
-    doc.save(`reporte_rondas_${new Date().toISOString().split('T')[0]}.pdf`);
-    showMessageBox('PDF descargado con tiempos agrupados por rondas');
-};
+    doc.text(`Generado: ${new Date().toLocaleDateString()}`, 20, 28);
+    let y = 40;
+    const groups = new Map();
+    recordedLaps.forEach(record => {
+      const round = record.round || 'Historial anterior';
+      if (!groups.has(round)) groups.set(round, []);
+      groups.get(round).push(record);
+    });
+    groups.forEach((records, round) => {
+      if (y > 265) { doc.addPage(); y = 20; }
+      doc.setFontSize(13);
+      doc.setTextColor(0, 51, 153);
+      doc.text(`Ronda ${round}`, 20, y);
+      y += 8;
+      doc.setFontSize(9);
+      doc.setTextColor(0, 0, 0);
+      records.forEach(record => {
+        if (y > 280) { doc.addPage(); y = 20; }
+        const method = record.method === 'automatic' ? 'Automático' :
+          record.method === 'manual' ? 'Manual' : (record.method || 'Anterior');
+        doc.text(`${record.runnerName || 'Corredor'}: ${formatTime(record.time)} · ${method}`, 25, y);
+        y += 6;
+      });
+      y += 5;
+    });
+    doc.save(`reporte_rondas_${new Date().toISOString().slice(0, 10)}.pdf`);
+  }
 
+  function addPersistentActionButton(id, label, handler, className, parent = controls) {
+    const button = document.createElement('button');
+    button.id = id;
+    button.type = 'button';
+    button.textContent = label;
+    if (className) button.className = className;
+    button.addEventListener('click', handler);
+    parent.appendChild(button);
+    return button;
+  }
+
+  function setupOptionalButtons() {
+    if (document.getElementById('download-pdf')) return;
+    const actions = document.createElement('div');
+    actions.className = 'timer-history-actions';
+    actions.style.cssText = 'display:flex;flex:1 1 100%;flex-wrap:wrap;gap:8px;justify-content:center;max-height:22vh;overflow:auto;';
+    controls.appendChild(actions);
+    addPersistentActionButton('download-pdf', 'Descargar PDF', downloadPDF, 'gradient-purple', actions);
+    addPersistentActionButton('download-csv', 'Descargar CSV', downloadCSV, 'gradient-blue', actions);
+    addPersistentActionButton('configure-runners', 'Nombres / Excel', openConfiguration, 'gradient-green', actions);
+  }
+
+  function setUpNamesForm() {
+    const container = document.getElementById('names-input-container');
+    container.replaceChildren();
+    const existing = runners.length ? runners : [{ name: 'Corredor 1' }];
+    existing.forEach((runner, index) => appendNameInput(container, runner.name, index));
     const add = document.createElement('button');
-    add.textContent = '+ Corredor';
-    add.className = 'gradient-green';
-    add.onclick = () => {
-        const n = runners.length + 1;
-        runners.push({ id: n, name: `Corredor ${n}` });
-        saveLaps();
-        showMessageBox(`+ Corredor ${n}`);
-        // Actualizar lista cuando se agrega nuevo corredor
-        displayRunnersList();
-    };
+    add.id = 'add-runner-btn';
+    add.type = 'button';
+    add.className = 'gradient-blue';
+    add.textContent = '+ Agregar';
+    add.addEventListener('click', () => appendNameInput(container, '', container.querySelectorAll('input').length));
+    container.appendChild(add);
+  }
 
-    resetButton.after(dl);
-    dl.after(add);
-}
+  function appendNameInput(container, value, index) {
+    const group = document.createElement('div');
+    group.className = 'name-input-group';
+    const label = document.createElement('label');
+    label.textContent = `Corredor ${index + 1}:`;
+    label.htmlFor = `runner-${index}`;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = 'Nombre';
+    input.id = `runner-${index}`;
+    input.value = value || '';
+    group.append(label, input);
+    const addButton = container.querySelector('#add-runner-btn');
+    if (addButton) container.insertBefore(group, addButton);
+    else container.appendChild(group);
+  }
 
-// === CÁMARA ===
-async function setupCamera() {
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-        video.srcObject = stream;
-        await new Promise(r => video.onloadedmetadata = r);
-        [hiddenCanvas, overlayCanvas].forEach(c => {
-            c.width = video.videoWidth;
-            c.height = video.videoHeight;
-        });
-        startCalibration();
-        requestAnimationFrame(detectMovement);
-    } catch (e) {
-        showMessageBox('Error: Cámara no disponible');
-    }
-}
-
-function startCalibration() {
-    isCalibrating = true;
-    calibrationSamples = [];
-    timerDisplay.textContent = 'CALIBRANDO';
-    timerDisplay.style.color = 'yellow';
-    setTimeout(() => {
-        const avg = calibrationSamples.length ? calibrationSamples.reduce((a,b)=>a+b)/calibrationSamples.length : 0;
-        detectionThreshold = Math.max(60, Math.min(400, avg * 2 + 30));
-        sensitivitySlider.value = detectionThreshold;
-        isCalibrating = false;
-        timerDisplay.textContent = '00:00.000';
-        timerDisplay.style.color = '#e2e8f0';
-        // Actualizar lista después de calibrar
-        displayRunnersList();
-    }, calibrationDuration);
-}
-
-function detectMovement() {
-    if (!video.videoWidth) { requestAnimationFrame(detectMovement); return; }
-
-    hiddenCtx.drawImage(video, 0, 0);
-    drawLine();
-
-    const x1 = hiddenCanvas.width * 0.475;
-    const w = hiddenCanvas.width * 0.05;
-    const frame = hiddenCtx.getImageData(x1, 0, w, hiddenCanvas.height);
-
-    if (previousFrameData && frame.data.length === previousFrameData.data.length) {
-        let diff = 0;
-        for (let i = 0; i < frame.data.length; i += 4) {
-            diff += Math.abs(frame.data[i] - previousFrameData.data[i]);
-            diff += Math.abs(frame.data[i+1] - previousFrameData.data[i+1]);
-            diff += Math.abs(frame.data[i+2] - previousFrameData.data[i+2]);
-        }
-        const norm = diff / (frame.data.length / 4);
-
-        // === MODIFICADO: Verificar si el cooldown está activo ===
-        if (isCalibrating) {
-            calibrationSamples.push(norm);
-        } else if (!cooldownActive && timerState !== 'paused' && norm > detectionThreshold && (performance.now() - lastDetectionTime) > detectionCooldown) {
-            lastDetectionTime = performance.now();
-            playBeep();
-            drawLine('lime', true);
-            vibrate(200);
-
-            if (timerState === 'stopped') {
-                startTime = performance.now();
-                timerState = 'running';
-                statusMessage.textContent = '¡CORRIENDO!';
-                timerDisplay.style.color = '#ff4444'; // Rojo al iniciar
-                // Actualizar lista para mostrar "EN CURSO"
-                displayRunnersList();
-            } else {
-                const elapsed = performance.now() - startTime;
-                const runner = runners[currentRunnerIndex];
-
-                if (elapsed < 3000) {
-                    statusMessage.textContent = 'Vuelta muy rápida';
-                    drawLine('yellow', true);
-                } else {
-                    // VUELTA VÁLIDA - Guardar en roundLaps (ronda actual)
-                    roundLaps.push({ time: elapsed, runnerName: runner.name, runnerIndex: currentRunnerIndex });
-                    saveLaps();
-
-                    // === AVANZAR CORREDOR ===
-                    const wasLast = currentRunnerIndex === runners.length - 1;
-
-                    if (wasLast) {
-                        // RONDA COMPLETADA
-                        currentRound++;
-                        
-                        showMessageBox(`¡RONDA ${currentRound-1} COMPLETADA!\n\nTodos los corredores han pasado.\n\nPulsa OK para la RONDA ${currentRound}`);
-
-                        timerState = 'paused';
-                        statusMessage.textContent = 'Esperando...';
-
-                        messageBoxOkButton.onclick = () => {
-                            messageBox.style.display = 'none';
-                            // === NUEVO: Iniciar nueva ronda en lugar de cooldown ===
-                            startNewRound();
-                            messageBoxOkButton.onclick = () => messageBox.style.display = 'none';
-                        };
-                    } else {
-                        // Siguiente corredor normal
-                        currentRunnerIndex++;
-                        const next = runners[currentRunnerIndex];
-                        statusMessage.textContent = `${runner.name} → ${formatTime(elapsed)} | Siguiente: ${next.name}`;
-                        
-                        // === NUEVO: Iniciar cooldown entre corredores ===
-                        startCooldown();
-                    }
-
-                    timerState = 'stopped';
-                    lastDisplayedTime = elapsed;
-                    timerDisplay.style.color = '#e2e8f0'; // Color normal al detener
-                    
-                    // ACTUALIZAR LISTA CON NUEVO TIEMPO
-                    displayRunnersList();
-                }
-            }
-        }
-    }
-
-    previousFrameData = new ImageData(new Uint8ClampedArray(frame.data), frame.width, frame.height);
-
-    // === MODIFICADO: Actualizar display considerando cooldown ===
+  function openConfiguration() {
     if (timerState === 'running') {
-        const currentTime = performance.now() - startTime;
-        timerDisplay.textContent = formatTime(currentTime);
-        
-        // === NUEVO: Cambiar a rojo durante los primeros 3 segundos ===
-        if (currentTime < 3000) {
-            timerDisplay.style.color = '#ff4444'; // Rojo cuando no puede parar
-        } else {
-            timerDisplay.style.color = '#00ffff'; // Cian normal cuando puede parar
-        }
-    } else if (!cooldownActive) {
-        timerDisplay.textContent = formatTime(lastDisplayedTime);
+      showMessageBox('Termina o interrumpe la medición antes de cambiar la configuración.');
+      return;
     }
-    // Nota: Durante el cooldown, el display se actualiza en la función startCooldown()
+    document.getElementById('setup-modal').style.display = 'flex';
+  }
 
-    requestAnimationFrame(detectMovement);
-}
+  function confirmReplaceConfiguration(nextRunners) {
+    if (timerState === 'running') {
+      showMessageBox('Termina o interrumpe la medición antes de cambiar la lista.');
+      return false;
+    }
+    if (recordedLaps.length && !window.confirm('Hay resultados guardados. Cambiar la lista conservará el historial, pero reiniciará el avance de la ronda actual. ¿Continuar?')) return false;
+    runners = nextRunners;
+    currentRunnerIndex = 0;
+    roundLaps = [];
+    awaitingNextRound = false;
+    timerState = 'stopped';
+    startTime = 0;
+    lastDisplayedTime = 0;
+    saveLaps();
+    displayRunnersList();
+    updateReadyStatus();
+    return true;
+  }
 
-// === EVENTOS ===
-function stopCameraTracks() {
+  function setupWithNames() {
+    document.getElementById('setup-modal').style.display = 'none';
+    document.getElementById('names-modal').style.display = 'flex';
+    setUpNamesForm();
+  }
+
+  function saveRunnerNames() {
+    const next = [...document.querySelectorAll('#names-input-container input')].map((input, index) => ({
+      id: index + 1,
+      name: input.value.trim() || `Corredor ${index + 1}`
+    }));
+    if (!next.length) return showMessageBox('Añade al menos un corredor.');
+    if (confirmReplaceConfiguration(next)) {
+      document.getElementById('names-modal').style.display = 'none';
+      document.getElementById('app-container').style.display = 'flex';
+    }
+  }
+
+  function setupWithExcel() {
+    document.getElementById('setup-modal').style.display = 'none';
+    document.getElementById('excel-modal').style.display = 'flex';
+    document.getElementById('excel-file').value = '';
+    document.getElementById('excel-preview').style.display = 'none';
+    document.getElementById('names-list').replaceChildren();
+    window.tempExcelNames = null;
+  }
+
+  function processExcelFile() {
+    const file = document.getElementById('excel-file').files[0];
+    if (!file) return showMessageBox('Selecciona un archivo Excel.');
+    const reader = new FileReader();
+    reader.onload = event => {
+      try {
+        const workbook = XLSX.read(new Uint8Array(event.target.result), { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        const names = rows.map(row => row && row[0] != null ? String(row[0]).trim() : '').filter(Boolean);
+        if (!names.length) return showMessageBox('No se encontraron nombres en el archivo.');
+        const list = document.getElementById('names-list');
+        list.replaceChildren();
+        names.forEach((name, index) => {
+          const item = document.createElement('li');
+          item.textContent = `${index + 1}. ${name}`;
+          list.appendChild(item);
+        });
+        window.tempExcelNames = names;
+        document.getElementById('excel-preview').style.display = 'block';
+      } catch (error) {
+        showMessageBox('No se pudo procesar el archivo Excel.');
+      }
+    };
+    reader.onerror = () => showMessageBox('No se pudo leer el archivo.');
+    reader.readAsArrayBuffer(file);
+  }
+
+  function saveExcelNames() {
+    if (!Array.isArray(window.tempExcelNames) || !window.tempExcelNames.length) {
+      return showMessageBox('Procesa primero un archivo Excel válido.');
+    }
+    const next = window.tempExcelNames.map((name, index) => ({ id: index + 1, name }));
+    if (confirmReplaceConfiguration(next)) {
+      document.getElementById('excel-modal').style.display = 'none';
+      document.getElementById('app-container').style.display = 'flex';
+      window.tempExcelNames = null;
+    }
+  }
+
+  function clearCompletedData() {
+    const hasData = recordedLaps.length || roundLaps.length;
+    if ((hasData || timerState === 'running') &&
+      !window.confirm('Esto borrará los resultados guardados y descartará cualquier medición incompleta. ¿Continuar?')) return;
+    recordedLaps = [];
+    roundLaps = [];
+    currentRunnerIndex = 0;
+    currentRound = 1;
+    awaitingNextRound = false;
+    timerState = 'stopped';
+    startTime = 0;
+    lastDisplayedTime = 0;
+    startMethod = null;
+    activeMethod = null;
+    let storageCleared = true;
     try {
-        const s = video && video.srcObject;
-        if (s && s.getTracks) s.getTracks().forEach(t => t.stop());
-        if (video) video.srcObject = null;
-    } catch (e) {}
-}
-resetButton.onclick = () => {
-    // 1. Limpiar SOLO las claves de este cronómetro (no todo el localStorage: tema, etc.)
-    try {
-        Object.values(LS_KEYS).forEach(k => localStorage.removeItem(k));
-    } catch (e) {}
-    // 2. Recargar la página (es lo más limpio y seguro)
-    stopCameraTracks();
-    location.reload();
-};
+      Object.values(LS_KEYS).forEach(key => localStorage.removeItem(key));
+    } catch (error) {
+      storageCleared = false;
+      warnStorage('No se pudo borrar el historial local. Exporta antes de salir; la recuperación local no está confirmada.');
+    }
+    if (storageCleared) {
+      storageReadFailed = false;
+      storageWarning = '';
+    }
+    saveLaps();
+    displayRunnersList();
+    timerDisplay.textContent = '00:00.000';
+    timerDisplay.style.color = '#e2e8f0';
+    updateReadyStatus();
+    if (runtime) {
+      runtime.stop();
+      runtime.prepare();
+    }
+  }
 
-sensitivitySlider.oninput = e => {
-    detectionThreshold = +e.target.value;
-    statusMessage.textContent = `Sensibilidad: ${detectionThreshold}`;
-};
-
-messageBoxOkButton.onclick = () => messageBox.style.display = 'none';
-
-// === EVENTOS PARA CONFIGURACIÓN ===
-document.getElementById('setup-with-names').onclick = setupWithNames;
-document.getElementById('setup-without-names').onclick = setupWithoutNames;
-document.getElementById('save-names').onclick = saveRunnerNames;
-document.getElementById('cancel-names').onclick = () => {
+  resetButton.addEventListener('click', clearCompletedData);
+  messageBoxOkButton.onclick = () => { messageBox.style.display = 'none'; };
+  document.getElementById('setup-with-names').addEventListener('click', setupWithNames);
+  document.getElementById('setup-without-names').addEventListener('click', () => {
+    if (confirmReplaceConfiguration([{ id: 1, name: 'Corredor 1' }])) {
+      document.getElementById('setup-modal').style.display = 'none';
+    }
+  });
+  document.getElementById('setup-with-excel').addEventListener('click', setupWithExcel);
+  document.getElementById('save-names').addEventListener('click', saveRunnerNames);
+  document.getElementById('cancel-names').addEventListener('click', () => {
     document.getElementById('names-modal').style.display = 'none';
     document.getElementById('setup-modal').style.display = 'flex';
-};
-
-// === EVENTOS PARA EXCEL ===
-document.getElementById('setup-with-excel').onclick = setupWithExcel;
-document.getElementById('process-excel').onclick = saveExcelNames;
-document.getElementById('cancel-excel').onclick = () => {
+  });
+  document.getElementById('excel-file').addEventListener('change', processExcelFile);
+  document.getElementById('process-excel').addEventListener('click', saveExcelNames);
+  document.getElementById('cancel-excel').addEventListener('click', () => {
     document.getElementById('excel-modal').style.display = 'none';
     document.getElementById('setup-modal').style.display = 'flex';
     window.tempExcelNames = null;
-};
-
-// Event listener para cuando se selecciona un archivo Excel
-document.getElementById('excel-file').addEventListener('change', processExcelFile);
-
-// === INICIO ===
-function bootApp() {
+  });
+  function bootApp() {
+    if (booted) return;
+    booted = true;
     loadLaps();
-    if (runners.length > 0) {
-        document.getElementById('app-container').style.display = 'flex';
-        setupCamera();
-        createButtons();
-        statusMessage.textContent = `Ronda ${currentRound} - Listo: ${runners[currentRunnerIndex].name}`;
-        // MOSTRAR LISTA INMEDIATAMENTE AL CARGAR
-        displayRunnersList();
-    } else {
-        document.getElementById('setup-modal').style.display = 'flex';
-    }
-}
-window.onload = () => {
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-    script.onload = bootApp;
-    script.onerror = bootApp; // la app funciona sin PDF; el botón avisará
-    document.head.appendChild(script);
-};
+    document.getElementById('app-container').style.display = 'flex';
+    document.getElementById('setup-modal').style.display = 'none';
+    setupOptionalButtons();
+    updateReadyStatus();
+    ensureRuntime();
+    if (awaitingNextRound) showRoundComplete();
+  }
 
-window.onresize = () => {
-    if (video.videoWidth) {
-        [hiddenCanvas, overlayCanvas].forEach(c => {
-            c.width = video.videoWidth;
-            c.height = video.videoHeight;
-        });
-    }
-};
+  const pdfScript = document.createElement('script');
+  pdfScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+  document.head.appendChild(pdfScript);
+  bootApp();
+})();

@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>PaceTrack timing regression checks</title>
+<pre id="results">RUNNING</pre>
+<script type="module">
+const results = document.getElementById('results');
+const checks = [];
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+function check(name, condition) { checks.push({ name, passed: Boolean(condition) }); if (!condition) throw new Error(name); }
+async function until(condition, timeout = 6000) {
+  const end = performance.now() + timeout;
+  while (!condition()) { if (performance.now() > end) throw new Error('Timed out waiting for application state'); await delay(50); }
+}
+function bootstrap(initial) {
+  window.__errors = []; window.__requests = 0; window.__scene = { hit: false, n: 0 };
+  window.addEventListener('error', e => window.__errors.push(e.message));
+  window.addEventListener('unhandledrejection', e => window.__errors.push(String(e.reason)));
+  const map = new Map(Object.entries(initial));
+  const storage = { getItem: k => map.has(k) ? map.get(k) : null, setItem: (k, v) => map.set(k, String(v)), removeItem: k => map.delete(k), dump: () => Object.fromEntries(map) };
+  Object.defineProperty(window, 'localStorage', { value: storage });
+  window.confirm = () => true;
+  window.Audio = class { play() { return Promise.resolve(); } pause() {} };
+  window.__downloads = [];
+  const nativeURL = URL.createObjectURL.bind(URL);
+  URL.createObjectURL = blob => { window.__downloads.push(blob); return nativeURL(blob); };
+  HTMLAnchorElement.prototype.click = function () { window.__downloadName = this.download; };
+  window.jspdf = { jsPDF: class {
+    text() {} setFontSize() {} setTextColor() {} addPage() {}
+    save(name) { window.__pdfName = name; }
+  } };
+  window.XLSX = { read: () => ({ SheetNames: ['Names'], Sheets: { Names: {} } }), utils: { sheet_to_json: () => [['Ada'], ['Luis']] } };
+  const proto = HTMLVideoElement.prototype;
+  Object.defineProperty(proto, 'srcObject', {
+    configurable: true, get() { return this.__stream || null; },
+    set(value) {
+      this.__stream = value;
+      Object.defineProperties(this, {
+        videoWidth: { configurable: true, get: () => value ? 640 : 0 },
+        videoHeight: { configurable: true, get: () => value ? 480 : 0 },
+        readyState: { configurable: true, get: () => value ? 4 : 0 },
+        currentTime: { configurable: true, get: () => performance.now() / 1000 }
+      });
+      if (value) setTimeout(() => this.dispatchEvent(new Event('loadedmetadata')), 0);
+    }
+  });
+  proto.play = () => Promise.resolve();
+  const draw = CanvasRenderingContext2D.prototype.drawImage;
+  CanvasRenderingContext2D.prototype.drawImage = function (source, ...args) {
+    if (!(source instanceof HTMLVideoElement) || !source.__stream) return draw.call(this, source, ...args);
+    const level = window.__scene.hit ? (++window.__scene.n % 2 ? 200 : 40) : 80;
+    this.fillStyle = `rgb(${level},${level},${level})`; this.fillRect(0, 0, this.canvas.width, this.canvas.height);
+  };
+  Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: {
+    getUserMedia: async () => {
+      window.__requests++;
+      if (window.__deny) throw Object.assign(new Error('denied'), { name: 'NotAllowedError' });
+      const track = new EventTarget();
+      track.stop = () => { track.stopped = true; };
+      const stream = { getTracks: () => [track], getVideoTracks: () => [track] };
+      window.__track = track;
+      if (window.__defer) return new Promise((resolve, reject) => {
+        window.__resolveDeferred = () => resolve(stream);
+        window.__rejectDeferred = reject;
+      });
+      return stream;
+    }
+  } });
+}
+async function load(url, initial = {}) {
+  const frame = document.createElement('iframe');
+  frame.style.cssText = 'width:390px;height:844px;border:0';
+  document.body.appendChild(frame);
+  const doc = new DOMParser().parseFromString(await (await fetch(url)).text(), 'text/html');
+  // The tests must never write to live Firebase or request a real camera.
+  for (const script of doc.querySelectorAll('script[src]')) if (/^https?:/.test(script.getAttribute('src'))) script.remove();
+  for (const link of doc.querySelectorAll('link[href]')) if (/^https?:/.test(link.getAttribute('href'))) link.remove();
+  const base = doc.createElement('base'); base.href = new URL(url, location.href).href; doc.head.prepend(base);
+  const setup = doc.createElement('script');
+  setup.textContent = '(' + bootstrap.toString() + ')(' + JSON.stringify(initial) + ');';
+  doc.head.insertBefore(setup, base.nextSibling);
+  frame.srcdoc = '<!doctype html>' + doc.documentElement.outerHTML;
+  await new Promise(resolve => frame.addEventListener('load', resolve, { once: true }));
+  await until(() => frame.contentDocument.getElementById('timing-manual-mode') ||
+    (url.includes('/PC/PC.html') && frame.contentDocument.getElementById('session-code')?.textContent));
+  return frame;
+}
+const paths = ['/timer/timer.html', '/timer_loop/timer_loop.html', '/timer_sector/timer_sector.html', '/timer_PC/Mobil/timer.html'];
+const keys = ['pt_timer_recordedLaps', 'pt_loop_recordedLaps', 'pt_sector_recordedLaps', 'pt_pcmobil_recordedLaps:local'];
+try {
+  for (let i = 0; i < paths.length; i++) {
+    const frame = await load(paths[i]); const w = frame.contentWindow; const doc = frame.contentDocument;
+    check(paths[i] + ' no automatic camera request', w.__requests === 0);
+    check(paths[i] + ' mobile layout fits', doc.documentElement.scrollWidth <= 390);
+    doc.getElementById('timing-manual-mode').click();
+    check(paths[i] + ' manual guidance closes', doc.getElementById('timing-guide').hidden);
+    const trigger = doc.getElementById('timing-manual-trigger');
+    trigger.click(); trigger.click();
+    check(paths[i] + ' duplicate click guarded', trigger.disabled);
+    await delay(650);
+    check(paths[i] + ' clock advances', doc.getElementById('timer-display').textContent !== '00:00.000');
+    trigger.click(); await delay(600);
+    const records = JSON.parse(w.localStorage.getItem(keys[i]) || '[]');
+    check(paths[i] + ' completed result stored', records.length === 1);
+    check(paths[i] + ' method recorded', records[0].method === 'manual');
+    const dismiss = doc.getElementById('message-box-ok'); if (dismiss) dismiss.click();
+    if (i === 0) check('completed Original round stays visible in recent history', /Manual/.test(doc.getElementById('laps-container').textContent));
+    if (i !== 1) trigger.click(); // Loop is already measuring its next segment.
+    await delay(650);
+    w.dispatchEvent(new Event('pagehide'));
+    check(paths[i] + ' exit disarms', doc.body.dataset.timingState === 'interrupted');
+    check(paths[i] + ' interruption retains completed result', JSON.parse(w.localStorage.getItem(keys[i]) || '[]').length === 1);
+    const saved = w.localStorage.dump();
+    check(paths[i] + ' no uncaught errors', w.__errors.length === 0);
+    frame.remove();
+    const restored = await load(paths[i], saved);
+    check(paths[i] + ' history restored after reload', JSON.parse(restored.contentWindow.localStorage.getItem(keys[i]) || '[]').length === 1);
+    const exportButton = restored.contentDocument.querySelector('#download-csv, #export-csv, #export-csv-button, #export-local-results');
+    if (exportButton) {
+      exportButton.click(); await delay(50);
+      check(paths[i] + ' CSV export works', restored.contentWindow.__downloads.length > 0);
+    }
+    if (i === 0) {
+      const d = restored.contentDocument; const r = restored.contentWindow;
+      d.getElementById('timing-tools').open = true;
+      d.getElementById('configure-runners').click();
+      d.getElementById('setup-with-names').click();
+      d.querySelector('#names-input-container input').value = 'Ada';
+      d.getElementById('save-names').click();
+      check('optional names do not clear Original history', JSON.parse(r.localStorage.getItem(keys[0])).length === 1);
+      check('participant names saved', JSON.parse(r.localStorage.getItem('pt_timer_runners'))[0].name === 'Ada');
+      d.getElementById('configure-runners').click();
+      d.getElementById('setup-with-excel').click();
+      const transfer = new r.DataTransfer();
+      transfer.items.add(new r.File(['workbook fixture'], 'names.xlsx'));
+      d.getElementById('excel-file').files = transfer.files;
+      d.getElementById('excel-file').dispatchEvent(new r.Event('change'));
+      await until(() => d.querySelectorAll('#names-list li').length === 2);
+      d.getElementById('process-excel').click();
+      check('Excel import path applies participants', JSON.parse(r.localStorage.getItem('pt_timer_runners')).length === 2);
+      check('Excel import retains Original results', JSON.parse(r.localStorage.getItem(keys[0])).length === 1);
+      d.getElementById('download-pdf').click(); await delay(100);
+      check('PDF export or library path produces output', Boolean(r.__pdfName) || r.__downloads.some(blob => blob.type === 'application/pdf'));
+      check('advanced controls fit on mobile', d.documentElement.scrollWidth <= 390);
+    }
+    restored.remove();
+  }
+  const camera = await load(paths[1]); const w = camera.contentWindow; const doc = camera.contentDocument;
+  doc.getElementById('sensitivity-slider').value = '25';
+  doc.getElementById('sensitivity-slider').dispatchEvent(new w.Event('input'));
+  w.__deny = true; doc.getElementById('timing-camera-start').click();
+  await until(() => doc.body.dataset.timingState === 'error');
+  check('permission denied has retry and manual recovery', !doc.getElementById('timing-camera-retry').hidden && !doc.getElementById('timing-manual-mode').hidden);
+  w.__deny = false; doc.getElementById('timing-camera-retry').click();
+  await until(() => doc.body.dataset.timingState === 'testing', 6000);
+  check('calibration uses actual frame pipeline', w.__requests === 2);
+  check('manual sensitivity is not silently overwritten', doc.getElementById('sensitivity-slider').value === '25');
+  check('overlay processing resolution is bounded', doc.getElementById('overlay-canvas').width <= 640 && doc.getElementById('overlay-canvas').height <= 480);
+  check('test phase has no saved times', !w.localStorage.getItem(keys[1]));
+  w.__scene.hit = true;
+  await until(() => doc.body.dataset.timingState === 'tested');
+  w.__scene.hit = false; doc.getElementById('timing-arm').click();
+  check('explicit arming required', doc.body.dataset.timingState === 'armed');
+  await delay(200); w.__scene.hit = true; await delay(250);
+  w.__scene.hit = false; await delay(700); w.__scene.hit = true; await delay(250);
+  check('automatic crossing records lap', JSON.parse(w.localStorage.getItem(keys[1]) || '[]').length === 1);
+  check('automatic method preserved', JSON.parse(w.localStorage.getItem(keys[1]))[0].method === 'automatic');
+  w.__track.dispatchEvent(new Event('ended'));
+  check('camera track interruption disarms', doc.body.dataset.timingState === 'interrupted');
+  check('camera resources released', w.__track.stopped === true);
+  check('camera scenario has no uncaught errors', w.__errors.length === 0);
+  w.HTMLVideoElement.prototype.play = () => Promise.reject(new Error('blocked playback'));
+  doc.getElementById('timing-camera-retry').click();
+  await until(() => doc.body.dataset.timingState === 'error');
+  check('blocked playback has useful recovery', /reproducir/.test(doc.getElementById('timing-help').textContent) && w.__track.stopped);
+  camera.remove();
+  const cancelled = await load(paths[1]); const cw = cancelled.contentWindow; const cd = cancelled.contentDocument;
+  cw.__defer = true; cd.getElementById('timing-camera-start').click();
+  await until(() => cw.__rejectDeferred);
+  cd.getElementById('timing-manual-mode').click();
+  cw.__rejectDeferred(Object.assign(new Error('unsupported constraints'), { name: 'OverconstrainedError' }));
+  await delay(100);
+  check('cancelled request never launches fallback camera', cw.__requests === 1 && cd.body.dataset.timingState === 'manual');
+  cd.getElementById('timing-change-method').click();
+  cd.getElementById('timing-camera-start').click();
+  await delay(50);
+  cd.getElementById('timing-manual-mode').click(); cw.__resolveDeferred(); await delay(100);
+  check('late permission result is stopped without overriding manual mode', cw.__track.stopped && cd.body.dataset.timingState === 'manual');
+  Object.defineProperty(cd, 'hidden', { configurable: true, value: true });
+  cd.dispatchEvent(new cw.Event('visibilitychange'));
+  check('hidden page requires explicit recovery', cd.body.dataset.timingState === 'interrupted');
+  cancelled.remove();
+  const unsaved = await load(paths[0]); const uw = unsaved.contentWindow; const ud = unsaved.contentDocument;
+  uw.localStorage.setItem = () => { throw new uw.DOMException('storage full', 'QuotaExceededError'); };
+  ud.getElementById('timing-manual-mode').click(); ud.getElementById('timing-manual-trigger').click();
+  await delay(650); ud.getElementById('timing-manual-trigger').click(); await delay(50);
+  check('quota failure remains visible after finishing', /guardar|almacenamiento/i.test(ud.getElementById('timing-sync-status').textContent));
+  const leaving = new uw.Event('beforeunload', { cancelable: true });
+  uw.dispatchEvent(leaving);
+  check('leaving unsaved completed results requests confirmation', leaving.defaultPrevented);
+  unsaved.remove();
+  const pcPath = '/timer_PC/PC/PC.html';
+  const pc = await load(pcPath);
+  const pcw = pc.contentWindow; const pcd = pc.contentDocument;
+  const store = JSON.parse(pcw.localStorage.getItem('pacetrack.pc-sessions.v1'));
+  check('PC creates a recoverable session with no camera', Boolean(store.currentSessionId) && pcw.__requests === 0);
+  check('PC reports Firebase unavailable explicitly', /Firebase/.test(pcd.getElementById('connection-status').textContent));
+  const session = store.currentSessionId;
+  const snapshot = pcw.localStorage.dump(); pc.remove();
+  const recoveredPc = await load(pcPath, snapshot);
+  check('PC reload keeps the linked session', JSON.parse(recoveredPc.contentWindow.localStorage.getItem('pacetrack.pc-sessions.v1')).currentSessionId === session);
+  recoveredPc.contentDocument.getElementById('new-session').click();
+  check('new PC session has distinct identity', JSON.parse(recoveredPc.contentWindow.localStorage.getItem('pacetrack.pc-sessions.v1')).currentSessionId !== session);
+  check('PC has no uncaught errors', recoveredPc.contentWindow.__errors.length === 0);
+  recoveredPc.remove();
+  results.textContent = JSON.stringify({ passed: true, checks }, null, 2);
+} catch (error) {
+  results.textContent = JSON.stringify({ passed: false, error: String(error), checks }, null, 2);
+}
+</script>
+</html>

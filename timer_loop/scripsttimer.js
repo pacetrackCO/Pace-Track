@@ -1,258 +1,314 @@
-// ==========================
-// VARIABLES GLOBALES
-// ==========================
-const video = document.getElementById('video');
-const overlayCanvas = document.getElementById('overlay-canvas');
-const overlayCtx = overlayCanvas.getContext('2d');
-const hiddenCanvas = document.createElement('canvas');
-const hiddenCtx = hiddenCanvas.getContext('2d', { willReadFrequently: true });
+(() => {
+  'use strict';
 
-const timerDisplay = document.getElementById('timer-display');
-const statusMessage = document.getElementById('status-message');
-const resetButton = document.getElementById('reset-button');
-const sensitivitySlider = document.getElementById('sensitivity-slider');
-const lapsContainer = document.getElementById('laps-container');
-const lapsList = document.getElementById('laps-list');
-const messageBox = document.getElementById('message-box');
-const messageContent = document.getElementById('message-content');
-const messageBoxOkButton = document.getElementById('message-box-ok');
+  const video = document.getElementById('video');
+  const overlayCanvas = document.getElementById('overlay-canvas');
+  const timerDisplay = document.getElementById('timer-display');
+  const statusMessage = document.getElementById('status-message');
+  const resetButton = document.getElementById('reset-button');
+  const sensitivitySlider = document.getElementById('sensitivity-slider');
+  const lapsContainer = document.getElementById('laps-container');
+  const lapsList = document.getElementById('laps-list');
+  const messageBox = document.getElementById('message-box');
+  const messageContent = document.getElementById('message-content');
+  const messageBoxOkButton = document.getElementById('message-box-ok');
+  const controls = document.getElementById('controls');
+  const STORAGE_KEY = 'pt_loop_recordedLaps';
 
-// ==========================
-// ESTADO
-// ==========================
-let timerState = 'stopped';
-let startTime = 0;
-let lastDisplayedTime = 0;
-let previousFrameData = null;
-let detectionThreshold = parseInt(sensitivitySlider.value);
-let detectionLineX = 0.5;
-let detectionLineThickness = 0.05;
-let lastDetectionTime = 0;
-const detectionCooldown = 500;
-let isCalibrating = false;
-let calibrationSamples = [];
-let recordedLaps = [];
+  let recordedLaps = [];
+  let timerState = 'stopped';
+  let startTime = 0;
+  let lastDisplayedTime = 0;
+  let initialTriggerMethod = null;
+  let runtime = null;
+  let booted = false;
+  let storageWarning = '';
+  let storageReadFailed = false;
 
-// ==========================
-// FUNCIONES AUXILIARES
-// ==========================
-function formatTime(ms) {
-  const m = Math.floor(ms / 60000);
-  const s = Math.floor((ms % 60000) / 1000);
-  const msPart = Math.floor(ms % 1000);
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(msPart).padStart(3, '0')}`;
-}
-
-function showMessageBox(message) {
-  messageContent.textContent = message;
-  messageBox.style.display = 'block';
-}
-messageBoxOkButton.addEventListener('click', () => {
-  messageBox.style.display = 'none';
-});
-
-function displayLaps() {
-  lapsList.innerHTML = '';
-  if (recordedLaps.length === 0) {
-    lapsContainer.style.display = 'none';
-    return;
-  }
-  lapsContainer.style.display = 'block';
-  recordedLaps.forEach((lap, i) => {
-    const li = document.createElement('li');
-    li.innerHTML = `<span>P${i + 1}:</span> <span>${formatTime(lap)}</span>`;
-    lapsList.appendChild(li);
-  });
-  lapsList.scrollTop = lapsList.scrollHeight;
-}
-
-function saveLaps() {
-  try {
-    localStorage.setItem('pt_loop_recordedLaps', JSON.stringify(recordedLaps));
-  } catch (e) {
-    console.warn('No se pudo guardar en localStorage');
-  }
-}
-function loadLaps() {
-  try {
-    // Migrar clave antigua sin prefijo
-    const legacy = localStorage.getItem('recordedLaps');
-    if (legacy && !localStorage.getItem('pt_loop_recordedLaps')) {
-      localStorage.setItem('pt_loop_recordedLaps', legacy);
+  function updateStorageSync() {
+    if (runtime && typeof runtime.setSync === 'function') {
+      runtime.setSync(storageWarning || 'Resultados en este dispositivo', storageWarning ? 'error' : 'local');
+    } else if (storageWarning) {
+      statusMessage.textContent = storageWarning;
     }
-    const data = localStorage.getItem('pt_loop_recordedLaps');
-    if (data) {
-      recordedLaps = JSON.parse(data);
-      displayLaps();
+  }
+
+  function warnStorage(message) {
+    storageWarning = message;
+    updateStorageSync();
+  }
+
+  function formatTime(ms) {
+    const value = Math.max(0, Number(ms) || 0);
+    const minutes = Math.floor(value / 60000);
+    const seconds = Math.floor((value % 60000) / 1000);
+    const millis = Math.floor(value % 1000);
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(millis).padStart(3, '0')}`;
+  }
+
+  function showMessageBox(message) {
+    messageContent.textContent = message;
+    messageBox.style.display = 'block';
+  }
+
+  function saveLaps() {
+    if (storageReadFailed) return false;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(recordedLaps));
+      if (storageWarning) {
+        storageWarning = '';
+        updateStorageSync();
+      }
+      return true;
+    } catch (error) {
+      warnStorage('No se pudo guardar el historial. Exporta antes de salir; la recuperación local no está confirmada.');
+      return false;
     }
-  } catch (e) {}
-}
-
-// ==========================
-// CÁMARA Y DETECCIÓN
-// ==========================
-async function setupCamera() {
-  try {
-    statusMessage.textContent = 'Solicitando acceso a la cámara...';
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment' },
-      audio: false
-    });
-    video.srcObject = stream;
-    await new Promise(resolve => (video.onloadedmetadata = resolve));
-
-    hiddenCanvas.width = video.videoWidth;
-    hiddenCanvas.height = video.videoHeight;
-    overlayCanvas.width = video.videoWidth;
-    overlayCanvas.height = video.videoHeight;
-
-    statusMessage.textContent = 'Calibrando... mantén la cámara estable';
-    startCalibration();
-    requestAnimationFrame(detectMovement);
-  } catch (err) {
-    console.error('Error cámara:', err);
-    showMessageBox('❌ No se pudo acceder a la cámara. Revisa permisos.');
-    statusMessage.textContent = 'Cámara no disponible';
-  }
-}
-
-function startCalibration() {
-  isCalibrating = true;
-  calibrationSamples = [];
-  timerDisplay.textContent = 'CALIBRANDO';
-  timerDisplay.style.color = '#facc15';
-
-  setTimeout(() => {
-    const avgNoise =
-      calibrationSamples.length > 0
-        ? calibrationSamples.reduce((a, b) => a + b, 0) / calibrationSamples.length
-        : 0;
-
-    detectionThreshold = Math.max(parseInt(sensitivitySlider.min), avgNoise * 2 || 50);
-    detectionThreshold = Math.min(parseInt(sensitivitySlider.max), detectionThreshold);
-    sensitivitySlider.value = detectionThreshold;
-    isCalibrating = false;
-
-    statusMessage.textContent = 'Calibración completa. Listo.';
-    timerDisplay.style.color = '#e2e8f0';
-    timerDisplay.textContent = '00:00.000';
-  }, 3000);
-}
-
-function drawDetectionLine(color = 'rgba(255, 0, 0, 0.7)', flash = false) {
-  overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-  const x = overlayCanvas.width * detectionLineX;
-  const halfW = (overlayCanvas.width * detectionLineThickness) / 2;
-
-  overlayCtx.beginPath();
-  overlayCtx.moveTo(x - halfW, 0);
-  overlayCtx.lineTo(x - halfW, overlayCanvas.height);
-  overlayCtx.moveTo(x + halfW, 0);
-  overlayCtx.lineTo(x + halfW, overlayCanvas.height);
-  overlayCtx.strokeStyle = color;
-  overlayCtx.lineWidth = 4;
-  overlayCtx.stroke();
-
-  if (flash) {
-    overlayCanvas.classList.add('detection-line-flash');
-    setTimeout(() => overlayCanvas.classList.remove('detection-line-flash'), 150);
   }
 
-  if (isCalibrating) overlayCanvas.classList.add('calibrating-line');
-  else overlayCanvas.classList.remove('calibrating-line');
-}
-
-function detectMovement() {
-  if (video.readyState !== video.HAVE_ENOUGH_DATA) {
-    requestAnimationFrame(detectMovement);
-    return;
+  function isLoopRecord(record) {
+    return record && typeof record === 'object' &&
+      !('runnerName' in record) && !('runnerIndex' in record) &&
+      Number.isFinite(Number(record.time));
   }
 
-  hiddenCtx.drawImage(video, 0, 0, hiddenCanvas.width, hiddenCanvas.height);
-  // Muestrear SOLO la franja de detección (5% central), no el frame completo.
-  // El frame completo a 1080p colgaba los móviles de gama media.
-  const sx = Math.floor(hiddenCanvas.width * (detectionLineX - detectionLineThickness / 2));
-  const sw = Math.max(2, Math.floor(hiddenCanvas.width * detectionLineThickness));
-  const current = hiddenCtx.getImageData(sx, 0, sw, hiddenCanvas.height);
-
-  if (previousFrameData && previousFrameData.data.length === current.data.length) {
-    let diff = 0;
-    const d = current.data, p = previousFrameData.data;
-    for (let i = 0; i < d.length; i += 12) {
-      diff += Math.abs(d[i] - p[i]);
-      diff += Math.abs(d[i+1] - p[i+1]);
-      diff += Math.abs(d[i+2] - p[i+2]);
-    }
-    const pixels = d.length / 12;
-    const normalized = diff / pixels;
-
-    if (isCalibrating) {
-      calibrationSamples.push(normalized);
-    } else {
-      const now = performance.now();
-
-      if (normalized > detectionThreshold && now - lastDetectionTime > detectionCooldown) {
-        lastDetectionTime = now;
-        drawDetectionLine('lime', true);
-
-        if (timerState === 'stopped') {
-          startTime = now;
-          timerState = 'running';
-          statusMessage.textContent = 'Contando...';
-          timerDisplay.style.color = '#34d399';
-        } else {
-          const elapsed = now - startTime;
-          recordedLaps.push(elapsed);
-          saveLaps();
-          displayLaps();
-          startTime = now;
-          statusMessage.textContent = `Paso ${recordedLaps.length} - ${formatTime(elapsed)}`;
+  function loadLaps() {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        recordedLaps = Array.isArray(parsed) ? parsed.flatMap((record, index) => {
+          if (typeof record === 'number' && Number.isFinite(record)) {
+            return [{ time: record, method: 'legacy', sequence: index + 1 }];
+          }
+          return isLoopRecord(record) ? [record] : [];
+        }) : [];
+      } else {
+        // Migrate only numeric legacy arrays: object records were used by Original mode.
+        const legacy = localStorage.getItem('recordedLaps');
+        if (legacy) {
+          const parsed = JSON.parse(legacy);
+          if (Array.isArray(parsed) && parsed.every(value => typeof value === 'number' && Number.isFinite(value))) {
+            recordedLaps = parsed.map((time, index) => ({
+              time, method: 'legacy', sequence: index + 1
+            }));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(recordedLaps));
+          }
         }
       }
+    } catch (error) {
+      recordedLaps = [];
+      storageReadFailed = true;
+      warnStorage('No se pudo leer el historial guardado. Exporta los resultados disponibles antes de salir; la recuperación local no está confirmada.');
+    }
+    displayLaps();
+  }
+
+  function displayLaps() {
+    lapsList.replaceChildren();
+    if (!recordedLaps.length) {
+      lapsContainer.style.display = 'none';
+      return;
+    }
+    lapsContainer.style.display = 'block';
+    recordedLaps.forEach((lap, index) => {
+      const item = document.createElement('li');
+      const lapName = document.createElement('span');
+      lapName.textContent = `V${index + 1}:`;
+      const time = document.createElement('span');
+      time.textContent = formatTime(lap.time);
+      item.append(lapName, time);
+      const method = document.createElement('small');
+      method.textContent = lap.method === 'automatic' ? 'Auto' :
+        lap.method === 'manual' ? 'Manual' : 'Anterior';
+      item.appendChild(method);
+      lapsList.appendChild(item);
+    });
+    lapsList.scrollTop = lapsList.scrollHeight;
+  }
+
+  function setTriggerLabel(label) {
+    if (runtime && typeof runtime.setTriggerLabel === 'function') runtime.setTriggerLabel(label);
+  }
+
+  function updateReadyStatus(event = {}) {
+    const method = event.method || (runtime && runtime.method) || 'automatic';
+    const methodLabel = method === 'manual' ? 'Manual' : 'Automático';
+    statusMessage.textContent = `Loop · ${methodLabel} · Listo para iniciar. Cada paso siguiente registra una vuelta; separación mínima: 500 ms.`;
+    setTriggerLabel(timerState === 'running' ? 'Registrar vuelta' : 'Iniciar');
+  }
+
+  function combineMethod(first, second) {
+    if (!first) return second || 'manual';
+    return first === second ? first : 'mixta';
+  }
+
+  function onTrigger(event) {
+    const now = Number(event && event.now);
+    if (!Number.isFinite(now)) return;
+    const method = event.method === 'automatic' ? 'automatic' : 'manual';
+    if (timerState !== 'running') {
+      startTime = now;
+      timerState = 'running';
+      initialTriggerMethod = method;
+      lastDisplayedTime = 0;
+      statusMessage.textContent = 'Loop · En curso: espera el siguiente paso para registrar una vuelta.';
+      timerDisplay.style.color = '#34d399';
+      setTriggerLabel('Registrar vuelta');
+      return;
+    }
+
+    const elapsed = Math.max(0, now - startTime);
+    const record = {
+      time: elapsed,
+      method: combineMethod(initialTriggerMethod, method),
+      sequence: recordedLaps.length + 1,
+      timestamp: new Date().toISOString()
+    };
+    recordedLaps.push(record);
+    saveLaps();
+    displayLaps();
+    startTime = now;
+    initialTriggerMethod = method;
+    lastDisplayedTime = elapsed;
+    statusMessage.textContent = `Vuelta ${record.sequence}: ${formatTime(elapsed)} · ${record.method === 'automatic' ? 'automática' : record.method === 'manual' ? 'manual' : 'mixta'}. Separación mínima: 500 ms.`;
+    timerDisplay.style.color = '#34d399';
+  }
+
+  function handleFrame(now) {
+    if (timerState === 'running') {
+      timerDisplay.textContent = formatTime(Math.max(0, now - startTime));
+    } else {
+      timerDisplay.textContent = formatTime(lastDisplayedTime);
     }
   }
 
-  previousFrameData = new ImageData(
-    new Uint8ClampedArray(current.data),
-    current.width,
-    current.height
-  );
-
-  if (timerState === 'running') {
-    const elapsed = performance.now() - startTime;
-    timerDisplay.textContent = formatTime(elapsed);
+  function handleInterrupt(reason) {
+    if (timerState === 'running') {
+      timerState = 'stopped';
+      startTime = 0;
+      initialTriggerMethod = null;
+      lastDisplayedTime = 0;
+      timerDisplay.textContent = '00:00.000';
+      timerDisplay.style.color = '#e2e8f0';
+      setTriggerLabel('Iniciar');
+    }
+    statusMessage.textContent = `Cronometraje interrumpido (${reason || 'detección perdida'}). El tramo incompleto se descartó; las vueltas guardadas se conservan.`;
   }
 
-  drawDetectionLine();
-  requestAnimationFrame(detectMovement);
-}
+  function ensureRuntime() {
+    if (runtime) return true;
+    if (!window.PaceTrackTiming || typeof window.PaceTrackTiming.create !== 'function') {
+      statusMessage.textContent = 'No se pudo cargar el módulo de cronometraje.';
+      return false;
+    }
+    runtime = window.PaceTrackTiming.create({
+      mode: 'loop',
+      video,
+      canvas: overlayCanvas,
+      status: statusMessage,
+      display: timerDisplay,
+      slider: sensitivitySlider,
+      mount: document.getElementById('app-container'),
+      onTrigger,
+      onFrame: handleFrame,
+      onInterrupt: handleInterrupt,
+      onReady: updateReadyStatus,
+      getActivity: () => timerState === 'running',
+      hasUnsavedData: () => Boolean(storageWarning && recordedLaps.length)
+    });
+    if (storageWarning) updateStorageSync();
+    return true;
+  }
 
-// ==========================
-// EVENTOS
-// ==========================
-sensitivitySlider.addEventListener('input', e => {
-  detectionThreshold = parseInt(e.target.value);
-});
+  function downloadCSV() {
+    if (!recordedLaps.length) return showMessageBox('No hay vueltas para exportar.');
+    const quote = value => `"${String(value == null ? '' : value).replace(/"/g, '""')}"`;
+    const rows = [['Vuelta', 'Tiempo (ms)', 'Tiempo', 'Método']];
+    recordedLaps.forEach((lap, index) => rows.push([
+      index + 1, Math.round(Number(lap.time) || 0), formatTime(lap.time), lap.method || 'legacy'
+    ]));
+    const blob = new Blob(['\uFEFF' + rows.map(row => row.map(quote).join(',')).join('\r\n')], {
+      type: 'text/csv;charset=utf-8'
+    });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `reporte_loop_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
 
-resetButton.addEventListener('click', () => {
-  try {
-    const s = video && video.srcObject;
-    if (s && s.getTracks) s.getTracks().forEach(t => t.stop());
-    if (video) video.srcObject = null;
-  } catch (e) {}
-  timerState = 'stopped';
-  startTime = 0;
-  lastDisplayedTime = 0;
-  previousFrameData = null;
-  recordedLaps = [];
-  try { localStorage.removeItem('pt_loop_recordedLaps'); } catch (e) {}
-  displayLaps();
-  timerDisplay.textContent = '00:00.000';
-  statusMessage.textContent = 'Reiniciando cámara...';
-  setupCamera();
-});
+  function downloadPDF() {
+    if (!recordedLaps.length) return showMessageBox('No hay vueltas para exportar.');
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+      return showMessageBox('PDF no disponible sin conexión. Usa «Descargar CSV» para guardar los resultados.');
+    }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.text('REPORTE DE VUELTAS · LOOP', 105, 20, { align: 'center' });
+    doc.setFontSize(10);
+    doc.text(`Generado: ${new Date().toLocaleDateString()}`, 20, 30);
+    let y = 42;
+    recordedLaps.forEach((lap, index) => {
+      if (y > 280) { doc.addPage(); y = 20; }
+      const method = lap.method === 'automatic' ? 'Automático' :
+        lap.method === 'manual' ? 'Manual' : (lap.method || 'Anterior');
+      doc.text(`Vuelta ${index + 1}: ${formatTime(lap.time)} · ${method}`, 20, y);
+      y += 8;
+    });
+    doc.save(`reporte_loop_${new Date().toISOString().slice(0, 10)}.pdf`);
+  }
 
-window.addEventListener('load', () => {
-  loadLaps();
-  setupCamera();
-});
+  function addButton(id, text, handler, className, parent = controls) {
+    const button = document.createElement('button');
+    button.id = id;
+    button.type = 'button';
+    button.textContent = text;
+    if (className) button.className = className;
+    button.addEventListener('click', handler);
+    parent.appendChild(button);
+  }
+
+  function clearHistory() {
+    if ((recordedLaps.length || timerState === 'running') &&
+      !window.confirm('Esto borrará todas las vueltas guardadas y descartará el tramo incompleto. ¿Continuar?')) return;
+    recordedLaps = [];
+    timerState = 'stopped';
+    startTime = 0;
+    lastDisplayedTime = 0;
+    initialTriggerMethod = null;
+    // The shared legacy key belongs to multiple modes. Keep it untouched and
+    // persist an empty namespaced array so old numeric Loop data is not imported again.
+    storageReadFailed = false;
+    saveLaps();
+    displayLaps();
+    timerDisplay.textContent = '00:00.000';
+    if (runtime) {
+      runtime.stop();
+      runtime.prepare();
+    }
+    updateReadyStatus();
+  }
+
+  resetButton.addEventListener('click', clearHistory);
+  messageBoxOkButton.addEventListener('click', () => { messageBox.style.display = 'none'; });
+  function bootApp() {
+    if (booted) return;
+    booted = true;
+    loadLaps();
+    const actions = document.createElement('div');
+    actions.className = 'timer-history-actions';
+    actions.style.cssText = 'display:flex;flex:1 1 100%;flex-wrap:wrap;gap:8px;justify-content:center;max-height:22vh;overflow:auto;';
+    controls.appendChild(actions);
+    addButton('download-pdf', 'Descargar PDF', downloadPDF, 'gradient-purple', actions);
+    addButton('download-csv', 'Descargar CSV', downloadCSV, 'gradient-blue', actions);
+    updateReadyStatus();
+    ensureRuntime();
+  }
+
+  const pdfScript = document.createElement('script');
+  pdfScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+  document.head.appendChild(pdfScript);
+  bootApp();
+})();

@@ -8,6 +8,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
     <link rel="stylesheet" href="../../pacetrack-ui.css">
+    <link rel="stylesheet" href="../../timing/timing.css?v=20261001">
 </head>
 <body>
     <a class="pt-app-nav" href="../../index.html" aria-label="Volver al inicio de PaceTrack">PACE / TRACK</a>
@@ -16,9 +17,11 @@
             <video id="video" autoplay playsinline></video>
             <canvas id="overlay-canvas"></canvas>
             <div id="timer-display">00:00.000</div>
-            <div id="status-message">Iniciando cámara...</div>
+            <div id="status-message">Prepara la detección o usa el modo manual.</div>
+            <div id="sync-status" role="status" aria-live="polite">Guardado local disponible; comprobando conexión…</div>
+            <button id="retry-sync-button" type="button" hidden>Reintentar sincronización</button>
             <div id="controls">
-                <button id="reset-button">Reiniciar</button>
+                <button id="reset-button" type="button">Reiniciar</button>
             </div>
             <div id="sensitivity-slider-container">
                 <label for="sensitivity-slider">Sensibilidad:</label>
@@ -27,6 +30,7 @@
             <div id="laps-container">
                 <h3>Tiempos de Paso</h3>
                 <ul id="laps-list"></ul>
+                <button id="export-local-results" type="button">Exportar historial local (CSV)</button>
             </div>
         </div>
         <div id="message-box" class="message-box">
@@ -34,6 +38,8 @@
             <button id="message-box-ok">OK</button>
         </div>
     </div>
-    <script src="scripsttimer.js"></script>
+    <script src="../../timing/core.js?v=20261001"></script>
+    <script src="../../timing/result-sync.js?v=20261001"></script>
+    <script src="scripsttimer.js?v=20261001"></script>
 </body>
 </html>

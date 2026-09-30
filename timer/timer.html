@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="stylestimer.css">
     <link rel="stylesheet" href="logo-splash/stylesintro.css">
     <link rel="stylesheet" href="../pacetrack-ui.css">
+    <link rel="stylesheet" href="../timing/timing.css?v=20261001">
 </head>
 
 <body>
@@ -18,7 +19,7 @@
     <script src="logo-splash/scriptsintro.js"></script>
 
     <!-- Modal para configuración de nombres -->
-    <div id="setup-modal" class="modal">
+    <div id="setup-modal" class="modal" style="display:none;">
         <div class="modal-content">
             <h2>Configuración de Vueltas</h2>
             <p>¿Cómo desea configurar los nombres?</p>
@@ -73,7 +74,7 @@
         </div>
     </div>
 
-    <div id="app-container" style="display:none;">
+    <div id="app-container">
         <div id="video-container">
             <video id="video" autoplay playsinline></video>
             <canvas id="overlay-canvas"></canvas>
@@ -97,6 +98,7 @@
         <p id="message-content"></p>
         <button id="message-box-ok">OK</button>
     </div>
-    <script src="scripsttimer.js"></script>
+    <script src="../timing/core.js?v=20261001"></script>
+    <script src="scripsttimer.js?v=20261001"></script>
 </body>
 </html>
