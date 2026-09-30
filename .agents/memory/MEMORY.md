@@ -1,1 +1,2 @@
 - [Vite public asset discovery](vite-public-assets.md) — newly copied public directories can return the HTML fallback until the preview server restarts.
+- [GitHub updates](github-updates.md) — use the connected GitHub proxy when imported Git credentials fail; verify tree and commit identity before a non-forced update.
