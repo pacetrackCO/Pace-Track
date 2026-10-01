@@ -114,7 +114,7 @@ export function HookScene() {
             animate={{ clipPath: 'inset(0 0 0 0)' }}
             transition={{ delay: 0.54, duration: 0.5 }}
           >
-            PACE TRACK, NO.
+            PACE TRACK CAMBIA.
           </motion.div>
         </div>
 
@@ -125,7 +125,7 @@ export function HookScene() {
           transition={{ delay: 0.76, duration: 0.42 }}
         >
           <span>01 — 04</span>
-          <span>DESLIZA HACIA LO NUEVO</span>
+          <span>NUEVA INTERFAZ / MISMO PULSO</span>
           <span className="scroll-arrow">↓</span>
         </motion.div>
       </div>

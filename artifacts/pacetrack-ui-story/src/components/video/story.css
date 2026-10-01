@@ -1,3 +1,7 @@
+html {
+  font-size: 4.10256vmin;
+}
+
 .story-stage {
   --ink: #0f172a;
   --forest: #1e293b;
@@ -471,6 +475,10 @@
 
 .mode-card--3 .mode-time {
   color: var(--amber);
+}
+
+.mode-card--3 .mode-description {
+  color: #cbd5e1;
 }
 
 .mode-trail {
