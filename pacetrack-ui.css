@@ -145,13 +145,13 @@ body:not(:has(#video-container)) header {
 }
 body:not(:has(#video-container)) .header-container { display: none; }
 body:not(:has(#video-container)) #themeToggle {
-  position: absolute; top: 18px; right: max(22px, calc((100vw - 1180px)/2));
+  position: absolute; top: 18px; right: clamp(18px, 3.5vw, 64px);
   width: 44px; height: 44px; border: 1px solid var(--pt-line); border-radius: 4px;
   background: var(--pt-panel); color: var(--pt-ink); box-shadow: none; font-size: 1rem;
 }
 body:not(:has(#video-container)) .google-translate { top: 24px; right: 82px; }
 .site-nav {
-  max-width: 1180px; margin: auto; height: 78px; padding: 0 22px; display: flex; align-items: center;
+  width: 100%; max-width: none; margin: 0; height: 78px; padding: 0 clamp(18px, 3.5vw, 64px); display: flex; align-items: center;
   gap: 36px; border-bottom: 1px solid var(--pt-line);
 }
 .site-brand { color: var(--pt-ink); text-decoration: none; font: 800 1.3rem var(--pt-display); letter-spacing: .09em; }
@@ -175,7 +175,7 @@ body:not(:has(#video-container)) .google-translate { top: 24px; right: 82px; }
   max-width: 138px; height: 34px; margin: 0; padding: 0 7px; border: 1px solid var(--pt-line);
   border-radius: 4px; background: var(--pt-panel); color: var(--pt-ink); font: 500 .72rem var(--pt-sans);
 }
-#main { max-width: 1180px; margin: 0 auto; padding: 0 22px; }
+#main { width: 100%; max-width: none; margin: 0; padding: 0 clamp(18px, 3.5vw, 64px); }
 .home-hero {
   min-height: 485px; padding: 75px 0 70px; display: grid; grid-template-columns: 1.1fr .9fr;
   align-items: center; gap: 48px; position: relative; overflow: hidden; border-bottom: 1px solid var(--pt-line);
@@ -238,7 +238,7 @@ body:not(:has(#video-container)) .back-to-top { right: 24px; bottom: 25px; borde
 body:not(:has(#video-container)) .events-section { padding: 50px 0; }
 body:not(:has(#video-container)) .events-section h2 { color: var(--pt-ink); }
 body:not(:has(#video-container)) .logo { width: 52px; filter: none; animation: none; }
-body:has(#proximos-eventos) header:has(.logo) { display: grid; grid-template-columns: 60px 1fr; align-items: center; gap: 10px; max-width: 1180px; margin: 0 auto; padding: 38px 22px 28px; }
+body:has(#proximos-eventos) header:has(.logo) { display: grid; grid-template-columns: 60px 1fr; align-items: center; gap: 10px; width: 100%; max-width: none; margin: 0; padding: 38px clamp(18px, 3.5vw, 64px) 28px; }
 body:has(#proximos-eventos) header:has(.logo) .site-nav { grid-column: 1 / -1; grid-row: 1; width: 100%; padding: 0; }
 body:has(#proximos-eventos) header:has(.logo) > a { grid-column: 1; grid-row: 2 / 4; }
 body:has(#proximos-eventos) header:has(.logo) h1 { grid-column: 2; grid-row: 2; margin: 0; color: var(--pt-ink); text-shadow: none; background: none; -webkit-text-fill-color: currentColor; font: 800 clamp(2.7rem,6vw,5.8rem)/.92 var(--pt-display); letter-spacing: -.02em; text-transform: uppercase; }
@@ -260,14 +260,14 @@ body:has(#qrcode) { min-height: 100dvh; background: var(--pt-paper) !important; 
 body:has(#qrcode) header {
   position: relative; display: grid; grid-template-columns: 64px minmax(0,1fr); grid-template-rows: auto auto;
   align-content: center; align-items: center; column-gap: 20px; min-height: 196px;
-  padding: 24px max(22px, calc((100vw - 1060px)/2)); background: var(--pt-ink); color: #f8fafc; clip-path: none; border-bottom: 0;
+  padding: 24px clamp(18px, 3.5vw, 64px); background: var(--pt-ink); color: #f8fafc; clip-path: none; border-bottom: 0;
 }
 body:has(#qrcode) header > a { grid-column: 1; grid-row: 1 / 3; }
 body:has(#qrcode) header .logo { display: block; width: 56px; filter: none; animation: none; }
 body:has(#qrcode) header h1 { grid-column: 2; grid-row: 1; margin: 0; color: #f8fafc; background: none; -webkit-text-fill-color: currentColor; text-shadow: none; font: 800 clamp(2rem,5vw,4.7rem)/.95 var(--pt-display); letter-spacing: 0; }
 body:has(#qrcode) header .subtitle { grid-column: 2; grid-row: 2; margin: 8px 0 0; color: #cbd5e1; font-size: .9rem; }
-body:has(#qrcode) .pt-app-nav { position: absolute; top: 14px; right: max(22px, calc((100vw - 1060px)/2)); left: auto; }
-body:has(#qrcode) .hero { max-width: 1060px; margin: 35px auto; padding: 0 22px; }
+body:has(#qrcode) .pt-app-nav { position: absolute; top: 14px; right: clamp(18px, 3.5vw, 64px); left: auto; }
+body:has(#qrcode) .hero { width: 100%; max-width: none; margin: 35px 0; padding: 0 clamp(18px, 3.5vw, 64px); }
 body:has(#qrcode) .hero-overlay { padding: clamp(20px,4vw,44px); background: var(--pt-panel); border: 1px solid var(--pt-line); }
 body:has(#qrcode) .hero-overlay h2 { color: var(--pt-ink); font: 800 2rem var(--pt-display); }
 body:has(#qrcode) #qrcode { width: min(100%,260px); min-height: 260px; display: grid; place-items: center; border: 1px solid var(--pt-line); }
