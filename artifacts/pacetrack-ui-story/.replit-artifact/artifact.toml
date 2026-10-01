@@ -1,0 +1,28 @@
+kind = "video"
+previewPath = "/"
+title = "PaceTrack · Interfaz renovada"
+description = "Story animada vertical para anunciar la actualización completa de la interfaz PaceTrack."
+version = "1.0.0"
+id = "artifacts/pacetrack-ui-story"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22004
+
+[services.development]
+run = "pnpm --filter @workspace/pacetrack-ui-story run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/pacetrack-ui-story", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/pacetrack-ui-story/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22004"
+BASE_PATH = "/"
