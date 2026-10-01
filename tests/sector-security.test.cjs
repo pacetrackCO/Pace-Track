@@ -137,19 +137,10 @@ test('room creation and entry require the shared Replit session API, not Firebas
     assert.match(elements.get('p2p-sync-status').textContent, /redes restrictivas/);
 });
 
-test('sector client and public design copies contain no TURN URLs or static TURN credentials', () => {
-    const files = [
-        sourcePath,
-        path.join(__dirname, '../artifacts/mockup-sandbox/public/pacetrack-current/timer_sector/scriptsSector.js'),
-        path.join(__dirname, '../artifacts/mockup-sandbox/public/pacetrack-refresh/timer_sector/scriptsSector.js')
-    ];
-    for (const file of files) {
-        const text = fs.readFileSync(file, 'utf8');
-        const hasTurnUrl = /\bturns?:/i.test(text);
-        const hasStaticIceCredentials = /\b(?:username|credential)\s*:/i.test(text);
-        assert.equal(hasTurnUrl, false, 'a public sector script must not contain a TURN URL');
-        assert.equal(hasStaticIceCredentials, false, 'a public sector script must not contain static ICE credentials');
-    }
+test('active sector script contains no TURN URLs or static TURN credentials', () => {
+    const text = fs.readFileSync(sourcePath, 'utf8');
+    assert.equal(/\bturns?:/i.test(text), false, 'the public sector script must not contain a TURN URL');
+    assert.equal(/\b(?:username|credential)\s*:/i.test(text), false, 'the public sector script must not contain static ICE credentials');
 });
 
 test('sector HTML loads the shared session API and no Firebase SDK', () => {

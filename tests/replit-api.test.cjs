@@ -395,7 +395,7 @@ test('candidate quota, rate bounds, same-origin protection and safe static allow
     '/security/ACCESS-PLAN.md',
     '/.git/config',
     '/.agents/config',
-    '/artifacts/mockup-sandbox',
+    '/artifacts',
     '/%2e%2e/server/app.cjs',
   ]) {
     assert.equal((await request(origin, 'GET', privatePath)).status, 404, privatePath);
