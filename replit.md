@@ -4,7 +4,7 @@ The website retains vanilla HTML, CSS and JavaScript. Its active session/results
 
 ## Website source of truth
 
-The user requested a visual refresh across the entire interface, retaining the original orange/amber identity or harmonious colors. The design preview uses orange, amber and night blue.
+The user requested a visual refresh across the entire interface, retaining the original orange/amber identity or harmonious colors. The implemented interface uses orange, amber and night blue accents.
 
 The approved design is integrated into all eight original pages through the root `pacetrack-ui.css`. The root website is the only publishable app; do not add a story, animation, or mockup artifact unless the user explicitly asks for one.
 
