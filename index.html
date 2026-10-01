@@ -243,18 +243,17 @@
     <section class="contact" id="contacto" aria-labelledby="contacto-titulo">
         <h2 id="contacto-titulo">Contacto y Soporte</h2>
         <p>¿Tienes una idea? ¿Encontraste un bug? ¡Nos encanta escucharte!</p>
-        <form id="contactForm" name="contact" method="POST" data-netlify="true" itemscope itemtype="https://schema.org/ContactPoint">
-            <input type="hidden" name="form-name" value="contact">
+        <form id="contactForm" action="/api/contact" method="POST" itemscope itemtype="https://schema.org/ContactPoint">
             <p class="hidden"><label>No llenes este campo: <input name="bot-field"></label></p>
             
             <label for="nombre" class="visually-hidden">Tu nombre</label>
-            <input type="text" id="nombre" name="name" placeholder="Nombre" required itemprop="name">
+            <input type="text" id="nombre" name="nombre" placeholder="Nombre" maxlength="100" required itemprop="name">
             
             <label for="email" class="visually-hidden">Tu email</label>
-            <input type="email" id="email" name="email" placeholder="Email" required itemprop="email">
+            <input type="email" id="email" name="email" placeholder="Email" maxlength="254" required itemprop="email">
             
             <label for="mensaje" class="visually-hidden">Tu mensaje</label>
-            <textarea id="mensaje" name="message" placeholder="Mensaje" rows="5" required itemprop="description"></textarea>
+            <textarea id="mensaje" name="mensaje" placeholder="Mensaje" rows="5" maxlength="5000" required itemprop="description"></textarea>
             
             <button type="submit" class="btn">ENVIAR MENSAJE</button>
         </form>

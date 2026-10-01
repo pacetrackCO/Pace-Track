@@ -2,3 +2,4 @@
 - [GitHub updates](github-updates.md) — use the connected GitHub proxy when imported Git credentials fail; verify tree and commit identity before a non-forced update.
 - [Timing test realism](timing-test-realism.md) — virtual-time iframe failures need real-time confirmation; simulated cameras and links are not physical-device certification.
 - [Participant configuration safety](timing-participant-configuration.md) — roster edits can relabel measurements or desynchronize stations; configure before pairing.
+- [Service access changes](service-access-changes.md) — verify deployed permissions; live rule/credential changes need approval, and rollback must not restore exposed TURN secrets.

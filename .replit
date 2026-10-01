@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "web", "python-base-3.13"]
+modules = ["nodejs-20", "web", "python-base-3.13", "postgresql-16"]
 
 [nix]
 channel = "stable-25_05"
@@ -30,13 +30,13 @@ args = "timing-browser"
 name = "PaceTrack"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python3 -m http.server 5000 --bind 0.0.0.0"
-waitForPort = 5000
-
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm start"
+waitForPort = 5000
 
 [[workflows.workflow]]
 name = "timing-unit"
@@ -70,4 +70,4 @@ externalPort = 80
 
 [postMerge]
 path = "scripts/post-merge.sh"
-timeoutMs = 60000
+timeoutMs = 180000

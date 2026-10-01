@@ -1,0 +1,18 @@
+{
+  "name": "pacetrack",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PaceTrack web timers and secure PostgreSQL pairing service",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server/index.cjs",
+    "test": "node tests/verify-interface.mjs && node --test tests/*.test.cjs",
+    "test:integration": "node tests/replit-api-integration.cjs"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "pg": "^8.16.3"
+  }
+}

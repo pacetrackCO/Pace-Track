@@ -7,13 +7,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <!-- Firebase -->
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
     <link rel="stylesheet" href="stylesSector.css">
     <link rel="stylesheet" href="logo-splash/stylesintro.css">
     <link rel="stylesheet" href="../pacetrack-ui.css">
-    <link rel="stylesheet" href="../timing/timing.css?v=20261001">
+    <link rel="stylesheet" href="../timing/timing.css?v=20261002">
 </head>
 
 <body>
@@ -99,9 +96,10 @@
                 <button id="p2p-toggle">▼</button>
             </div>
             <div id="p2p-content">
-                <p>En dos dispositivos: crea una sala en salida y escribe el mismo código en llegada.</p>
-                <label for="p2p-room-id">Código de sala</label>
-                <input type="text" id="p2p-room-id" placeholder="Ej.: equipo-azul" autocomplete="off">
+                <p>En dos dispositivos: salida crea una invitación de un solo uso. Copia el código generado por el servidor y pégalo en llegada. Si llegada debe reconectar después de responder o recargar, salida crea una sala nueva y comparte otra invitación.</p>
+                <label for="p2p-room-id">Invitación de sala</label>
+                <input type="text" id="p2p-room-id" placeholder="Crear sala genera una invitación" autocomplete="off" maxlength="32" spellcheck="false" autocapitalize="off">
+                <button id="p2p-copy-code" type="button">Copiar invitación</button>
                 <div style="display: flex; gap: 0.5rem;">
                     <button id="p2p-create" class="gradient-blue">Crear sala · Salida</button>
                     <button id="p2p-join" class="gradient-green">Entrar · Llegada</button>
@@ -125,8 +123,9 @@
         <button id="message-box-ok">OK</button>
     </div>
 
-    <script src="../timing/core.js?v=20261001"></script>
-    <script src="../timing/sector-sync.js?v=20261001"></script>
-    <script src="scriptsSector.js?v=20261001"></script>
+    <script src="../timing/core.js?v=20261002"></script>
+    <script src="../timing/sector-sync.js?v=20261002"></script>
+    <script src="../timing/session-api.js?v=20261002"></script>
+    <script src="scriptsSector.js?v=20261002"></script>
 </body>
 </html>

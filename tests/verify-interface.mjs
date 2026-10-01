@@ -70,18 +70,16 @@ for (const [relativePath, requiredIds] of Object.entries(pages)) {
 
 const serviceRequirements = {
   'timer_sector/timer_sector.html': [
-    'https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js',
-    'https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js',
+    '../timing/session-api.js',
     'scriptsSector.js',
   ],
   'timer_PC/PC/PC.html': [
-    'https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js',
-    'https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js',
+    '../../timing/session-api.js',
     'PCscripts.js',
   ],
   'timer_PC/Mobil/timer.html': [
-    'https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js',
-    'https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js',
+    '../../timing/session-api.js',
+    '../../timing/result-sync.js',
     'scripsttimer.js',
   ],
   'index.html': ['script.js'],
@@ -94,10 +92,22 @@ for (const [relativePath, requiredScripts] of Object.entries(serviceRequirements
   }
 }
 
+for (const relativePath of [
+  'timer_sector/timer_sector.html',
+  'timer_PC/PC/PC.html',
+  'timer_PC/Mobil/timer.html',
+]) {
+  const html = htmlByPath.get(relativePath);
+  assert.doesNotMatch(html, /firebase|netlify/i,
+    `${relativePath} must not depend on Firebase or Netlify`);
+  assert.match(html, /(?:src|href)=["'][^"']*timing\/session-api\.js(?:[?#][^"']*)?["']/i,
+    `${relativePath} must load the shared Replit session API`);
+}
+
 const contactForm = htmlByPath.get('index.html').match(/<form\b[^>]*id=["']contactForm["'][^>]*>/i)?.[0] ?? '';
-assert.match(contactForm, /\bmethod=["']POST["']/i, 'Contact form must keep Netlify POST behavior');
-assert.match(contactForm, /\bdata-netlify=["']true["']/i, 'Contact form must remain Netlify-enabled');
-assert.match(contactForm, /\bname=["']contact["']/i, 'Contact form name must remain contact');
+assert.match(contactForm, /\baction=["']\/api\/contact["']/i, 'Contact form must submit to the Replit contact API');
+assert.match(contactForm, /\bmethod=["']POST["']/i, 'Contact form must submit with POST');
+assert.doesNotMatch(contactForm, /\bdata-netlify(?:=["'][^"']*["'])?/i, 'Contact form must not depend on Netlify');
 
 // Parse classic inline scripts and local classic JS dependencies. JSON-LD and modules are data/import graphs, not classic scripts.
 const checkedScripts = new Set();

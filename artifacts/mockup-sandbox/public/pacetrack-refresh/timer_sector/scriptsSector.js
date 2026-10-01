@@ -484,29 +484,7 @@ function startCalibration() {
 // === FUNCIONES P2P ===
 function getIceConfiguration() {
     return {
-        iceServers: [
-            { urls: "stun:stun.relay.metered.ca:80" },
-            {
-                urls: "turn:global.relay.metered.ca:80",
-                username: "c1208ba0e8230537122cf693",
-                credential: "U4ffWBruWxpMqEir"
-            },
-            {
-                urls: "turn:global.relay.metered.ca:80?transport=tcp",
-                username: "c1208ba0e8230537122cf693",
-                credential: "U4ffWBruWxpMqEir"
-            },
-            {
-                urls: "turn:global.relay.metered.ca:443",
-                username: "c1208ba0e8230537122cf693",
-                credential: "U4ffWBruWxpMqEir"
-            },
-            {
-                urls: "turns:global.relay.metered.ca:443?transport=tcp",
-                username: "c1208ba0e8230537122cf693",
-                credential: "U4ffWBruWxpMqEir"
-            }
-        ],
+        iceServers: [{ urls: "stun:stun.relay.metered.ca:80" }],
         iceCandidatePoolSize: 10
     };
 }

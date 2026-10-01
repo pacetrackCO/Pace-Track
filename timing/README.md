@@ -44,7 +44,7 @@ La pantalla PC conserva su sesión y su copia de resultados al recargar. **Nueva
 - Si falla el almacenamiento local, se avisa. Exporta los resultados antes de salir: no se promete recuperación en ese caso. No borres los datos del navegador si necesitas conservar el historial.
 - Cámara fija, buena iluminación y un fondo sin movimiento son necesarios. Varias personas simultáneas, sombras, vibración, exposición automática y pasos demasiado rápidos pueden provocar errores.
 - Mostrar milisegundos **no significa precisión de un milisegundo**. Este sistema no es cronometraje homologado de competición.
-- Firebase, WebRTC, las bibliotecas de Excel/PDF y los permisos dependen del navegador y de la red. CSV y el cronometraje manual/local siguen siendo alternativas cuando esos servicios no están disponibles.
+- La API Replit, WebRTC, las bibliotecas de Excel/PDF y los permisos dependen del navegador y de la red. CSV y el cronometraje manual/local siguen siendo alternativas cuando esos servicios no están disponibles. El sector usa STUN sin TURN temporal: algunas redes restrictivas no podrán emparejarse todavía.
 
 ## Validación y compatibilidad
 
@@ -60,7 +60,7 @@ Estado comprobado el **1 de octubre de 2026**.
 
 El usuario confirmó funcionamiento en **iOS** el 1 de octubre de 2026, sin especificar modelo, versiones, navegador, modo o método de detección. Es una confirmación informal de uso, no una ejecución documentada de la matriz ni una certificación de precisión.
 
-La vista móvil de Chromium **no es una prueba de Android ni de iOS**. Las cámaras, las respuestas de Firebase, el almacenamiento y los fallos de permisos usados en el banco de pruebas están simulados. No se han publicado estos cambios ni se han escrito resultados de prueba en Firebase real.
+La vista móvil de Chromium **no es una prueba de Android ni de iOS**. Las cámaras, las respuestas de la API de sesiones, el almacenamiento y los fallos de permisos usados en ese banco de pruebas están simulados. La prueba PostgreSQL separada usa sesiones sintéticas de desarrollo y limpia solo sus propios registros. No se han publicado estos cambios ni se han escrito resultados de prueba en Firebase real.
 
 ### Pruebas reproducibles
 

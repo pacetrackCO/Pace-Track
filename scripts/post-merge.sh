@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
-# The main website is static and has no dependency installation or migration.
-# Browser checks run separately, once the application workflow is serving.
+# Development-only setup. Publishing manages the production schema separately.
+# Browser checks run through their isolated fixture server.
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
-node tests/verify-interface.mjs
-node --test tests/*.test.cjs
+npm ci --no-audit --no-fund
+node scripts/apply-dev-schema.cjs
+npm test

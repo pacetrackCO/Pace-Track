@@ -1,15 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const firebaseConfig = {
-        apiKey: "AIzaSyC_IPrOClJF0uIkQB_yIEMdZZ28AgCE4k",
-        authDomain: "pacetrack-579ef.firebaseapp.com",
-        databaseURL: "https://pacetrack-579ef-default-rtdb.europe-west1.firebasedatabase.app",
-        projectId: "pacetrack-579ef",
-        storageBucket: "pacetrack-579ef.firebasestorage.app",
-        messagingSenderId: "997850928548",
-        appId: "1:997850928548:web:ce6bf324a6a2c42d4bdd31",
-        measurementId: "G-M7E0JYMVGX"
-    };
     const STORAGE_KEY = 'pacetrack.pc-sessions.v1';
+    const OWNER_SESSION_KEY = 'pacetrack.pc-owner-session.v1';
+    const SESSION_KIND = 'pc';
     const statusMessage = document.getElementById('status-message');
     const connectionStatus = document.getElementById('connection-status');
     const storageStatus = document.getElementById('storage-status');
@@ -25,13 +17,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let sessionId = null;
     let results = new Map();
     const sessionArchives = new Map();
-    let database = null;
-    let connected = false;
-    let connectionRef = null;
-    let resultsRef = null;
-    let legacyRef = null;
-    let subscriptions = [];
-    let listenerGeneration = 0;
+    let api = null;
+    let ownerSession = null;
+    let ownerInvite = null;
+    let pollTimer = null;
+    let pollInFlight = false;
+    let sessionGeneration = 0;
 
     function formatTime(milliseconds) {
         const safe = Math.max(0, Number(milliseconds) || 0);
@@ -45,22 +36,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return typeof value === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value);
     }
 
-    function createSessionId() {
-        if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, character => {
-            const random = Math.random() * 16 | 0;
-            return (character === 'x' ? random : (random & 0x3 | 0x8)).toString(16);
-        });
-    }
-
-    function createUnusedSessionId() {
-        let candidate = createSessionId();
-        for (let attempt = 0; attempt < 8 && sessionArchives.has(candidate); attempt += 1) {
-            candidate = createSessionId();
-        }
-        return candidate;
-    }
-
     function setStorageStatus(message, kind) {
         storageStatus.textContent = message;
         storageStatus.dataset.kind = kind || 'local';
@@ -71,13 +46,47 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function normalizeRecord(id, value) {
-        if (!value || !Number.isFinite(Number(value.elapsed))) return null;
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+        let serialized;
+        try {
+            serialized = JSON.stringify(value);
+        } catch (_) {
+            return null;
+        }
+        if (!serialized || utf8ByteLength(serialized) > 2048) return null;
+        if (typeof value.elapsed !== 'number' || !Number.isFinite(value.elapsed) || value.elapsed < 0 || value.elapsed > 2592000000) return null;
         const recordId = value.id || id;
-        if (!recordId) return null;
-        return Object.assign({}, value, {
-            id: String(recordId),
-            elapsed: Number(value.elapsed)
-        });
+        if (typeof recordId !== 'string' || !validResultId(recordId)) return null;
+        if (value.method !== undefined && !['manual', 'automatic', 'legacy'].includes(value.method)) return null;
+        if (value.timestamp !== undefined && (typeof value.timestamp !== 'string' || value.timestamp.length > 40 ||
+            (value.timestamp && !Number.isFinite(Date.parse(value.timestamp))))) return null;
+        return {
+            id: recordId,
+            elapsed: value.elapsed,
+            method: value.method || 'legacy',
+            timestamp: value.timestamp || ''
+        };
+    }
+
+    function validResultId(value) {
+        return typeof value === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value);
+    }
+
+    function utf8ByteLength(value) {
+        try {
+            return encodeURIComponent(value).replace(/%[0-9A-F]{2}/gi, 'x').length;
+        } catch (_) {
+            return Infinity;
+        }
+    }
+
+    function validServerResult(value, targetSession) {
+        if (!value || typeof value !== 'object' || Array.isArray(value) ||
+            value.sessionId !== targetSession || !['manual', 'automatic'].includes(value.method) ||
+            typeof value.timestamp !== 'string' || !value.timestamp) return false;
+        const keys = Object.keys(value).sort();
+        if (keys.length !== 5 || keys.join(',') !== 'elapsed,id,method,sessionId,timestamp') return false;
+        return Boolean(normalizeRecord(value.id, value));
     }
 
     function readStore() {
@@ -187,10 +196,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const loaded = readStore();
         if (!loaded.ok) {
             setStorageStatus(loaded.error, 'error');
-            sessionId = createUnusedSessionId();
+            sessionId = null;
             results = new Map();
-            sessionNotice.textContent = `No se pudo recuperar una sesión anterior. Esta sesión temporal es ${sessionId}; exporta cualquier resultado antes de cerrar si el almacenamiento continúa indisponible.`;
-            return;
+            sessionNotice.textContent = 'No se pudo recuperar el historial local; no se modificará el archivo dañado.';
+            return false;
         }
 
         Object.entries(loaded.store.sessions).forEach(([id, session]) => {
@@ -200,17 +209,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (storedId && loaded.store.sessions[storedId]) {
             sessionId = storedId;
             results = new Map(sessionArchives.get(storedId).map(record => [record.id, record]));
-            sessionNotice.textContent = `Sesión anterior recuperada tras recargar: ${sessionId}. Se recuperaron ${results.size} resultado(s) guardados localmente.`;
-            setStorageStatus('Copia local recuperada. Los resultados nuevos se guardarán sin reemplazar otras sesiones.', 'local');
-            return;
+            sessionNotice.textContent = `Sesión local recuperada: ${sessionId}.`;
+            setStorageStatus('Copia local recuperada. Los archivos anteriores se conservan para exportar.', 'local');
+            return true;
         }
-
-        sessionId = createUnusedSessionId();
+        sessionId = null;
         results = new Map();
         sessionNotice.textContent = loaded.exists
-            ? `Se creó una sesión nueva (${sessionId}); las sesiones locales anteriores se conservan para exportar.`
-            : `Nueva sesión creada: ${sessionId}.`;
-        persistActiveSession();
+            ? 'No hay sesión activa. Las sesiones locales anteriores se conservan para exportar.'
+            : 'Creando una sesión segura…';
+        return true;
     }
 
     function renderResults() {
@@ -240,7 +248,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function acceptRecord(id, value, targetSession) {
-        if (targetSession !== sessionId) return;
+        if (!validSessionId(targetSession) || targetSession !== sessionId) return;
+        if (id !== null && id !== undefined && !validResultId(id)) return;
+        if (value && value.id !== undefined && id !== null && id !== undefined && value.id !== id) return;
+        if (value && value.sessionId !== undefined && value.sessionId !== targetSession) return;
         const record = normalizeRecord(id, value);
         if (!record || results.has(record.id)) return;
         results.set(record.id, record);
@@ -249,84 +260,180 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showQr() {
-        const qrUrl = `https://pacetrack.es/timer_PC/Mobil/timer.html?session=${encodeURIComponent(sessionId)}`;
+        if (!validSessionId(sessionId) || !ownerInvite) {
+            qrcodeContainer.replaceChildren();
+            sessionCode.textContent = sessionId ? `Sesión local: ${sessionId}` : 'Sin sesión Replit activa';
+            return;
+        }
+        const qrUrl = new URL('../Mobil/timer.html', window.location.href);
+        qrUrl.searchParams.set('session', sessionId);
+        qrUrl.hash = `invite=${ownerInvite}`;
         sessionCode.textContent = `Sesión actual: ${sessionId}`;
         try {
             if (typeof QRCode === 'undefined') throw new Error('Librería de código QR no disponible.');
             qrcodeContainer.replaceChildren();
-            new QRCode(qrcodeContainer, { text: qrUrl, width: 200, height: 200 });
-            connectionStatus.textContent = 'Escanea el QR desde el móvil para conectarlo a esta sesión. No se necesita cámara en este ordenador.';
+            new QRCode(qrcodeContainer, { text: qrUrl.toString(), width: 200, height: 200 });
+            connectionStatus.textContent = 'Sesión Replit lista. Escanea el QR para vincular el móvil de forma segura.';
         } catch (error) {
-            connectionStatus.textContent = `${error.message} Copia este enlace en el móvil: ${qrUrl}`;
+            connectionStatus.textContent = `${error.message} Copia este enlace en el móvil: ${qrUrl.toString()}`;
         }
     }
 
-    function detachFirebase() {
-        listenerGeneration += 1;
-        subscriptions.forEach(subscription => subscription.ref.off(subscription.event, subscription.callback));
-        subscriptions = [];
-        connectionRef = null;
-        resultsRef = null;
-        legacyRef = null;
-        connected = false;
+    function readOwnerMetadata() {
+        try {
+            const metadata = JSON.parse(localStorage.getItem(OWNER_SESSION_KEY) || 'null');
+            if (!metadata || !validSessionId(metadata.id) || !validInvite(metadata.invite)) return null;
+            return metadata;
+        } catch (_) {
+            return null;
+        }
     }
 
-    function initFirebase() {
-        detachFirebase();
-        const targetSession = sessionId;
-        const generation = listenerGeneration;
-        const isCurrent = () => targetSession === sessionId && generation === listenerGeneration;
+    function validInvite(value) {
+        return typeof value === 'string' && /^[a-f0-9]{32}$/i.test(value);
+    }
+
+    function saveOwnerMetadata(session) {
+        const metadata = { id: session.id, invite: session.invite, expiresAt: session.expiresAt };
+        ownerInvite = metadata.invite;
         try {
-            if (!window.firebase || !firebase.initializeApp || !firebase.database) {
-                throw new Error('El SDK de Firebase no se ha cargado.');
-            }
-            if (!firebase.apps || !firebase.apps.length) firebase.initializeApp(firebaseConfig);
-            database = firebase.database();
-
-            function subscribe(ref, event, callback, onError) {
-                const guardedCallback = snapshot => { if (isCurrent()) callback(snapshot); };
-                const guardedError = error => { if (isCurrent()) onError(error); };
-                ref.on(event, guardedCallback, guardedError);
-                subscriptions.push({ ref, event, callback: guardedCallback });
-            }
-
-            connectionRef = database.ref('.info/connected');
-            resultsRef = database.ref(`sessions/${targetSession}/results`);
-            legacyRef = database.ref(`sessions/${targetSession}/laps`);
-            subscribe(connectionRef, 'value', snapshot => {
-                connected = snapshot.val() === true;
-                connectionStatus.textContent = connected
-                    ? 'Conectado a Firebase; esperando resultados del móvil.'
-                    : 'Sin conexión con Firebase. La sesión y los resultados recuperados permanecen visibles localmente.';
-            }, error => {
-                connected = false;
-                connectionStatus.textContent = `Error de conexión recuperable: ${error.message}. La copia local sigue disponible.`;
-            });
-            subscribe(resultsRef, 'child_added', snapshot => acceptRecord(snapshot.key, snapshot.val(), targetSession), error => {
-                connectionStatus.textContent = `No se pudieron leer resultados: ${error.message}. La copia local sigue disponible.`;
-            });
-            subscribe(resultsRef, 'child_changed', snapshot => acceptRecord(snapshot.key, snapshot.val(), targetSession), error => {
-                connectionStatus.textContent = `No se pudieron actualizar resultados: ${error.message}.`;
-            });
-            // Compatibilidad de lectura para datos antiguos; los nuevos envíos nunca reescriben listas completas.
-            subscribe(legacyRef, 'value', snapshot => {
-                const oldLaps = snapshot.val();
-                if (!Array.isArray(oldLaps)) return;
-                oldLaps.forEach((elapsed, index) => {
-                    if (Number.isFinite(Number(elapsed))) {
-                        acceptRecord(`legacy-${index}`, {
-                            id: `legacy-${index}`,
-                            elapsed: Number(elapsed),
-                            method: 'legacy',
-                            timestamp: new Date(index).toISOString()
-                        }, targetSession);
-                    }
-                });
-            }, error => {
-                connectionStatus.textContent = `No se pudieron recuperar resultados anteriores: ${error.message}`;
-            });
+            localStorage.setItem(OWNER_SESSION_KEY, JSON.stringify(metadata));
+            return true;
         } catch (error) {
-            connectionStatus.textContent = `${error.message} El cronometraje móvil sigue disponible; se muestran los resultados guardados en este dispositivo.`;
+            setStorageStatus(`La sesión está activa, pero no se pudo guardar su invitación para recuperarla después: ${error.message}`, 'error');
+            return false;
+        }
+    }
+
+    function validCapability(session, expectedId) {
+        return Boolean(session && session.id === expectedId && validSessionId(session.id) &&
+            typeof session.token === 'string' && session.token.length > 0);
+    }
+
+    function stopPolling() {
+        sessionGeneration += 1;
+        if (pollTimer !== null) {
+            window.clearInterval(pollTimer);
+            pollTimer = null;
+        }
+        pollInFlight = false;
+    }
+
+    async function pollSession(generation) {
+        if (!ownerSession || !api || pollInFlight || generation !== sessionGeneration) return;
+        pollInFlight = true;
+        const targetSession = sessionId;
+        try {
+            const info = await api.request(ownerSession, '', { method: 'GET' });
+            if (generation !== sessionGeneration || targetSession !== sessionId) return;
+            if (!info || info.id !== targetSession || info.kind !== SESSION_KIND || info.role !== 'owner') {
+                throw new Error('El servidor no confirmó la sesión propietaria esperada.');
+            }
+            const remoteResults = await api.request(ownerSession, '/results', { method: 'GET' });
+            if (generation !== sessionGeneration || targetSession !== sessionId) return;
+            if (!Array.isArray(remoteResults)) throw new Error('El servidor devolvió resultados con un formato no válido.');
+            remoteResults.forEach(record => {
+                if (validServerResult(record, targetSession)) acceptRecord(record.id, record, targetSession);
+            });
+            connectionStatus.textContent = 'Conectado a Replit; esperando resultados del móvil.';
+        } catch (error) {
+            if (generation === sessionGeneration && targetSession === sessionId) {
+                connectionStatus.textContent = `Sin conexión con Replit: ${error.message}. Los resultados locales siguen disponibles; se reintentará.`;
+            }
+        } finally {
+            if (generation === sessionGeneration) pollInFlight = false;
+        }
+    }
+
+    function startPolling() {
+        stopPolling();
+        if (!ownerSession || !api || !validSessionId(sessionId)) return;
+        const generation = sessionGeneration;
+        pollSession(generation);
+        pollTimer = window.setInterval(() => pollSession(generation), 2000);
+    }
+
+    async function activateOwnerSession(session) {
+        session = Object.assign({}, session, { role: 'owner' });
+        const response = await api.request(session, '', { method: 'GET' });
+        if (!response || response.id !== session.id || response.kind !== SESSION_KIND || response.role !== 'owner') {
+            throw new Error('La sesión guardada no coincide con la capacidad propietaria; se requiere crear una sesión nueva.');
+        }
+        ownerSession = Object.assign({}, session, { role: 'owner' });
+        sessionId = session.id;
+        ownerInvite = (readOwnerMetadata() || {}).invite || session.invite || null;
+        if (!sessionArchives.has(sessionId)) sessionArchives.set(sessionId, []);
+        results = new Map((sessionArchives.get(sessionId) || []).map(record => [record.id, record]));
+        persistActiveSession();
+        sessionNotice.textContent = validInvite(ownerInvite)
+            ? `Sesión Replit recuperada: ${sessionId}. Se conservan también los historiales locales anteriores.`
+            : `Sesión Replit recuperada: ${sessionId}, pero no hay una invitación guardada para conectar móviles. Crea una sesión nueva para emparejar.`;
+        showQr();
+        renderResults();
+        startPolling();
+    }
+
+    async function createServerSession() {
+        if (!api || typeof api.create !== 'function') throw new Error('La API de sesiones Replit no está disponible.');
+        const created = await api.create(SESSION_KIND);
+        if (!created || !validSessionId(created.id) || typeof created.token !== 'string' ||
+            !created.token || !validInvite(created.invite) || !Number.isFinite(Date.parse(created.expiresAt || ''))) {
+            throw new Error('El servidor devolvió una sesión o invitación con formato no válido.');
+        }
+        const saved = api.save('owner', created);
+        if (saved === false) setStorageStatus('La sesión está activa, pero el token propietario no pudo guardarse para recuperarla después.', 'error');
+        saveOwnerMetadata(created);
+        if (typeof api.saveInvitation === 'function') api.saveInvitation(SESSION_KIND, created.invite, created);
+        stopPolling();
+        ownerSession = Object.assign({}, created, { role: 'owner' });
+        ownerInvite = created.invite;
+        sessionId = created.id;
+        results = new Map();
+        sessionArchives.set(sessionId, []);
+        persistActiveSession();
+        sessionNotice.textContent = `Nueva sesión Replit: ${sessionId}. Los historiales locales anteriores se conservan para exportar.`;
+        showQr();
+        renderResults();
+        startPolling();
+        return created;
+    }
+
+    async function initializeSession() {
+        try {
+            api = window.PaceTrackSessionAPI;
+            if (!api || typeof api.request !== 'function') throw new Error('La API de sesiones Replit no está disponible.');
+            const metadata = readOwnerMetadata();
+            const recoverId = metadata ? metadata.id : sessionId;
+            if (recoverId && typeof api.load === 'function') {
+                let savedOwner = await api.load('owner', recoverId);
+                let savedInvitation = null;
+                if (metadata && typeof api.loadInvitation === 'function') {
+                    savedInvitation = await api.loadInvitation(SESSION_KIND, metadata.invite);
+                }
+                if (savedOwner && validCapability(savedOwner, recoverId) &&
+                    (!savedInvitation || savedInvitation.id === recoverId)) {
+                    try {
+                        await activateOwnerSession(Object.assign({}, savedOwner, { invite: metadata && metadata.invite }));
+                        return;
+                    } catch (error) {
+                        connectionStatus.textContent = `No se pudo recuperar la sesión Replit: ${error.message}`;
+                    }
+                }
+            }
+            if (sessionId || sessionArchives.size) {
+                sessionNotice.textContent = 'Este historial local no tiene una capacidad propietaria guardada. Para conectar móviles, crea una sesión Replit nueva; los archivos antiguos seguirán disponibles para exportar.';
+                connectionStatus.textContent = 'Historial local disponible; no se contactará con sesiones antiguas de Firebase.';
+                showQr();
+                renderResults();
+                return;
+            }
+            await createServerSession();
+        } catch (error) {
+            connectionStatus.textContent = `No se pudo crear o recuperar la sesión Replit: ${error.message}. La sesión local no se ha reemplazado; pulsa «Nueva sesión» para reintentar.`;
+            sessionNotice.textContent = sessionArchives.size
+                ? 'Los historiales existentes permanecen locales e intactos.'
+                : 'No hay sesión remota activa; no se ha generado un identificador simulado.';
+            showQr();
         }
     }
 
@@ -380,35 +487,35 @@ document.addEventListener('DOMContentLoaded', () => {
         csvDownload(rows, 'pacetrack-sesiones-guardadas.csv');
     }
 
-    function startNewSession() {
+    async function startNewSession() {
         const hasResults = results.size > 0;
-        if (hasResults && !window.confirm('¿Crear una sesión nueva? Los resultados confirmados de la sesión actual se conservarán localmente y en Firebase. Los móviles conectados a la sesión anterior no cambiarán; escanea el nuevo QR para conectarlos.')) return;
-
-        const previousId = sessionId;
-        persistSessionSnapshot(previousId, Array.from(results.values()));
-        detachFirebase();
-        sessionId = createSessionId();
-        results = new Map();
-        sessionArchives.set(sessionId, []);
-        persistActiveSession();
-        sessionNotice.textContent = `Sesión nueva: ${sessionId}. La sesión anterior (${previousId}) se conserva para exportarla.`;
-        showQr();
-        renderResults();
-        initFirebase();
+        if (hasResults && !window.confirm('¿Crear una sesión Replit nueva? Los resultados e historiales anteriores se conservarán en este dispositivo para exportar. Los móviles deberán escanear el nuevo QR.')) return;
+        newSessionButton.disabled = true;
+        try {
+            await createServerSession();
+        } catch (error) {
+            connectionStatus.textContent = `No se pudo crear la sesión Replit: ${error.message}. La sesión actual y los historiales locales no se han reemplazado.`;
+            setStorageStatus(error.message, 'error');
+        } finally {
+            newSessionButton.disabled = false;
+        }
     }
 
     loadSavedState();
-    showQr();
     renderResults();
-    initFirebase();
+    showQr();
+    initializeSession();
     exportButton.addEventListener('click', exportCsv);
     exportHistoryButton.addEventListener('click', exportAllHistory);
     newSessionButton.addEventListener('click', startNewSession);
     window.addEventListener('pagehide', event => {
-        detachFirebase();
+        stopPolling();
         if (!event.persisted) return;
     });
     window.addEventListener('pageshow', event => {
-        if (event.persisted) initFirebase();
+        if (event.persisted && ownerSession) startPolling();
+    });
+    window.addEventListener('online', () => {
+        if (ownerSession) pollSession(sessionGeneration);
     });
 });

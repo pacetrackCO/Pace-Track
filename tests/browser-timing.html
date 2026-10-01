@@ -4,21 +4,31 @@
 <title>PaceTrack timing regression checks</title>
 <pre id="results">RUNNING</pre>
 <script type="module">
+import { createSessionApiBrowserMock, installSessionApiBrowserMock } from './session-api-browser-mock.js';
+
 const results = document.getElementById('results');
 const checks = [];
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 function check(name, condition) { checks.push({ name, passed: Boolean(condition) }); if (!condition) throw new Error(name); }
-async function until(condition, timeout = 6000) {
+async function until(condition, timeout = 6000, label = 'application state') {
   const end = performance.now() + timeout;
-  while (!condition()) { if (performance.now() > end) throw new Error('Timed out waiting for application state'); await delay(50); }
+  while (!condition()) {
+    if (performance.now() > end) {
+      const recentCalls = window.__pacetrackSessionMock?.calls.slice(-8) || [];
+      throw new Error('Timed out waiting for ' + label + '; recent API calls: ' + JSON.stringify(recentCalls));
+    }
+    await delay(50);
+  }
 }
 function bootstrap(initial) {
   window.__errors = []; window.__requests = 0; window.__scene = { hit: false, n: 0 };
   window.addEventListener('error', e => window.__errors.push(e.message));
   window.addEventListener('unhandledrejection', e => window.__errors.push(String(e.reason)));
-  const map = new Map(Object.entries(initial));
+  const initialStorage = initial.storage || Object.fromEntries(Object.entries(initial).filter(([key]) => key !== 'apiOffline'));
+  const map = new Map(Object.entries(initialStorage));
   const storage = { getItem: k => map.has(k) ? map.get(k) : null, setItem: (k, v) => map.set(k, String(v)), removeItem: k => map.delete(k), dump: () => Object.fromEntries(map) };
   Object.defineProperty(window, 'localStorage', { value: storage });
+  window.__apiOffline = Boolean(initial.apiOffline);
   window.confirm = () => true;
   window.Audio = class { play() { return Promise.resolve(); } pause() {} };
   window.__downloads = [];
@@ -72,12 +82,14 @@ async function load(url, initial = {}) {
   frame.style.cssText = 'width:390px;height:844px;border:0';
   document.body.appendChild(frame);
   const doc = new DOMParser().parseFromString(await (await fetch(url)).text(), 'text/html');
-  // The tests must never write to live Firebase or request a real camera.
+  // The tests must never reach a real Replit API, legacy Firebase service or camera.
   for (const script of doc.querySelectorAll('script[src]')) if (/^https?:/.test(script.getAttribute('src'))) script.remove();
   for (const link of doc.querySelectorAll('link[href]')) if (/^https?:/.test(link.getAttribute('href'))) link.remove();
   const base = doc.createElement('base'); base.href = new URL(url, location.href).href; doc.head.prepend(base);
   const setup = doc.createElement('script');
-  setup.textContent = '(' + bootstrap.toString() + ')(' + JSON.stringify(initial) + ');';
+  const pageUrl = new URL(url, location.href).href;
+  setup.textContent = '(' + bootstrap.toString() + ')(' + JSON.stringify(initial) + ');(' +
+    installSessionApiBrowserMock.toString() + ')(' + Boolean(initial.apiOffline) + ',' + JSON.stringify(pageUrl) + ');';
   doc.head.insertBefore(setup, base.nextSibling);
   frame.srcdoc = '<!doctype html>' + doc.documentElement.outerHTML;
   await new Promise(resolve => frame.addEventListener('load', resolve, { once: true }));
@@ -87,6 +99,7 @@ async function load(url, initial = {}) {
 }
 const paths = ['/timer/timer.html', '/timer_loop/timer_loop.html', '/timer_sector/timer_sector.html', '/timer_PC/Mobil/timer.html'];
 const keys = ['pt_timer_recordedLaps', 'pt_loop_recordedLaps', 'pt_sector_recordedLaps', 'pt_pcmobil_recordedLaps:local'];
+window.__pacetrackSessionMock = createSessionApiBrowserMock();
 try {
   for (let i = 0; i < paths.length; i++) {
     const frame = await load(paths[i]); const w = frame.contentWindow; const doc = frame.contentDocument;
@@ -200,22 +213,105 @@ try {
   check('leaving unsaved completed results requests confirmation', leaving.defaultPrevented);
   unsaved.remove();
   const pcPath = '/timer_PC/PC/PC.html';
+  const offlinePc = await load(pcPath, { apiOffline: true });
+  const offlineWindow = offlinePc.contentWindow; const offlineDocument = offlinePc.contentDocument;
+  await until(() => /No se pudo|sin conexión|offline|servidor/i.test(offlineDocument.getElementById('connection-status').textContent));
+  check('PC reports Replit offline explicitly instead of inventing a session',
+    /Replit|servidor|conexión/i.test(offlineDocument.getElementById('connection-status').textContent) &&
+    !JSON.parse(offlineWindow.localStorage.getItem('pacetrack.pc-sessions.v1') || '{"currentSessionId":null}').currentSessionId);
+  check('offline PC requests were rejected by the in-frame Replit service stub',
+    window.__pacetrackSessionMock.calls.some(call => call.path === '/api/sessions' && call.method === 'POST' && call.offline));
+  check('offline PC preserves camera-free behavior', offlineWindow.__requests === 0);
+  offlinePc.remove();
+
   const pc = await load(pcPath);
   const pcw = pc.contentWindow; const pcd = pc.contentDocument;
+  await until(() => {
+    const stored = JSON.parse(pcw.localStorage.getItem('pacetrack.pc-sessions.v1') || 'null');
+    return stored && stored.currentSessionId;
+  }, 6000, 'new PC session creation');
   const store = JSON.parse(pcw.localStorage.getItem('pacetrack.pc-sessions.v1'));
-  check('PC creates a recoverable session with no camera', Boolean(store.currentSessionId) && pcw.__requests === 0);
-  check('PC reports Firebase unavailable explicitly', /Firebase/.test(pcd.getElementById('connection-status').textContent));
   const session = store.currentSessionId;
+  const ownerCapabilityKey = `pacetrack.access.v1:owner:${session}`;
+  const capability = JSON.parse(pcw.localStorage.getItem(ownerCapabilityKey));
+  check('PC creates a server-issued recoverable session with no camera',
+    Boolean(session) && /^[a-f0-9-]{36}$/i.test(session) && pcw.__requests === 0);
+  check('PC persists the server-issued owner capability for recovery',
+    capability && capability.id === session && /^[A-Za-z0-9_-]{43}$/.test(capability.token));
+  check('PC session was created through the isolated Replit service fixture',
+    window.__pacetrackSessionMock.calls.some(call => call.path === '/api/sessions' && call.method === 'POST' && !call.offline));
   const snapshot = pcw.localStorage.dump(); pc.remove();
   const recoveredPc = await load(pcPath, snapshot);
-  check('PC reload keeps the linked session', JSON.parse(recoveredPc.contentWindow.localStorage.getItem('pacetrack.pc-sessions.v1')).currentSessionId === session);
+  await until(() => {
+    const status = recoveredPc.contentDocument.getElementById('connection-status').textContent;
+    return /Conectado a Replit|No se pudo|Sin conexión/i.test(status) ||
+      recoveredPc.contentWindow.__errors.length > 0;
+  }, 6000, 'PC session recovery polling');
+  const recoveredStatus = recoveredPc.contentDocument.getElementById('connection-status').textContent;
+  if (!/Conectado a Replit/.test(recoveredStatus)) {
+    throw new Error(`PC recovery did not connect: ${recoveredStatus}; iframe errors: ${recoveredPc.contentWindow.__errors.join('; ')}`);
+  }
+  const recoveredCapability = JSON.parse(recoveredPc.contentWindow.localStorage.getItem(ownerCapabilityKey));
+  check('PC reload keeps the linked session and its original token',
+    JSON.parse(recoveredPc.contentWindow.localStorage.getItem('pacetrack.pc-sessions.v1')).currentSessionId === session &&
+    recoveredCapability.token === capability.token);
   recoveredPc.contentDocument.getElementById('new-session').click();
-  check('new PC session has distinct identity', JSON.parse(recoveredPc.contentWindow.localStorage.getItem('pacetrack.pc-sessions.v1')).currentSessionId !== session);
+  await until(() => JSON.parse(recoveredPc.contentWindow.localStorage.getItem('pacetrack.pc-sessions.v1')).currentSessionId !== session,
+    6000, 'new PC session after button click');
+  const newSession = JSON.parse(recoveredPc.contentWindow.localStorage.getItem('pacetrack.pc-sessions.v1')).currentSessionId;
+  check('new PC session has distinct server-issued identity', newSession !== session &&
+    Boolean(JSON.parse(recoveredPc.contentWindow.localStorage.getItem(`pacetrack.access.v1:owner:${newSession}`))?.token));
   check('PC has no uncaught errors', recoveredPc.contentWindow.__errors.length === 0);
+
+  const ownerMetadata = JSON.parse(recoveredPc.contentWindow.localStorage.getItem('pacetrack.pc-owner-session.v1'));
+  const mobileUrl = `/timer_PC/Mobil/timer.html?session=${encodeURIComponent(newSession)}#invite=${ownerMetadata.invite}`;
+  const preservedLocalResult = {
+    id: '00000000-0000-4000-8000-000000000099',
+    elapsed: 1234,
+    method: 'manual',
+    timestamp: '2026-01-01T00:00:00.000Z',
+    sessionId: null,
+    syncState: 'local',
+  };
+  const mobile = await load(mobileUrl, {
+    storage: { 'pt_pcmobil_recordedLaps:local': JSON.stringify([preservedLocalResult]) },
+  });
+  const mobileWindow = mobile.contentWindow; const mobileDocument = mobile.contentDocument;
+  check('mobile fixture frame retains the QR session and invitation URL',
+    new mobileWindow.URLSearchParams(mobileWindow.location.search).get('session') === newSession &&
+    new mobileWindow.URLSearchParams(String(mobileWindow.location.hash || '').replace(/^#/, '')).get('invite') === ownerMetadata.invite);
+  await until(() => window.__pacetrackSessionMock.calls.some(call => call.path === '/api/sessions/join' && call.method === 'POST'),
+    6000, 'mobile invitation join');
+  check('mobile joins the PC session through its invitation without requesting a camera', mobileWindow.__requests === 0);
+  mobileDocument.getElementById('timing-manual-mode').click();
+  const mobileTrigger = mobileDocument.getElementById('timing-manual-trigger');
+  mobileTrigger.click(); await delay(650); mobileTrigger.click();
+  await until(() => window.__pacetrackSessionMock.results(newSession).length === 1, 6000, 'mobile result PUT confirmation');
+  const mobileRecordKey = `pt_pcmobil_recordedLaps:${newSession}`;
+  const localMobileRecords = JSON.parse(mobileWindow.localStorage.getItem(mobileRecordKey) || '[]');
+  const transferredRecord = window.__pacetrackSessionMock.results(newSession)[0];
+  check('mobile result retains its local result shape after server confirmation',
+    localMobileRecords.length === 1 && localMobileRecords[0].id === transferredRecord.id &&
+    localMobileRecords[0].sessionId === newSession && Number.isFinite(localMobileRecords[0].elapsed) &&
+    typeof localMobileRecords[0].timestamp === 'string');
+  check('mock Replit service confirmed the guest mobile result for the PC session',
+    transferredRecord.sessionId === newSession &&
+    window.__pacetrackSessionMock.calls.some(call => call.method === 'PUT' &&
+      call.path === `/api/sessions/${newSession}/results/${transferredRecord.id}` && call.role === 'guest'));
+  check('mobile keeps its pre-existing local-only results alongside linked-session results',
+    JSON.parse(mobileWindow.localStorage.getItem('pt_pcmobil_recordedLaps:local') || '[]')[0]?.id === preservedLocalResult.id);
+  await until(() => recoveredPc.contentDocument.querySelectorAll('#laps-list li').length === 1, 6000, 'PC result polling');
+  check('PC receives the mobile result through its authenticated Replit polling path',
+    recoveredPc.contentDocument.querySelector('#laps-list li')?.textContent.includes('Manual'));
+  check('PC/mobile transfer fixture has no uncaught errors',
+    mobileWindow.__errors.length === 0 && recoveredPc.contentWindow.__errors.length === 0);
+  mobile.remove();
   recoveredPc.remove();
+  check('all browser API calls were contained by the Replit fixture',
+    window.__pacetrackSessionMock.calls.every(call => call.path.startsWith('/api/')));
   results.textContent = JSON.stringify({ passed: true, checks }, null, 2);
 } catch (error) {
-  results.textContent = JSON.stringify({ passed: false, error: String(error), checks }, null, 2);
+  results.textContent = JSON.stringify({ passed: false, error: String(error), stack: error && error.stack, checks }, null, 2);
 }
 </script>
 </html>

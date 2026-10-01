@@ -144,20 +144,58 @@ function show(msg) {
     setTimeout(() => n.classList.remove('show'), 3000);
 }
 
-// FORMULARIO NETLIFY (con guarda si no hay form en la página)
+// FORMULARIO DE CONTACTO (con guarda si no hay form en la página)
 const contactForm = document.getElementById('contactForm');
 if (contactForm) {
-    contactForm.addEventListener('submit', e => {
+    let contactSubmitting = false;
+    contactForm.addEventListener('submit', async e => {
         e.preventDefault();
-        const fd = new FormData(e.target);
-        if (!fd.get('form-name')) fd.append('form-name', 'contact');
-        fetch('/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams(fd).toString()
-        })
-        .then(() => { show('¡Mensaje enviado! Te responderemos pronto.'); e.target.reset(); })
-        .catch(() => show('Error al enviar. Inténtalo de nuevo.'));
+        if (contactSubmitting) return;
+
+        const form = e.currentTarget || e.target;
+        const fd = new FormData(form);
+        const honeypot = String(fd.get('bot-field') || '').trim();
+        if (honeypot) {
+            show('No se pudo validar el formulario. Revisa los campos e inténtalo de nuevo.');
+            return;
+        }
+
+        const payload = {
+            nombre: String(fd.get('nombre') || '').trim(),
+            email: String(fd.get('email') || '').trim(),
+            mensaje: String(fd.get('mensaje') || '').trim()
+        };
+        const emailIsValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email);
+        if (!payload.nombre || payload.nombre.length > 100
+            || !emailIsValid || payload.email.length > 254
+            || !payload.mensaje || payload.mensaje.length > 5000) {
+            show('Revisa los campos e inténtalo de nuevo.');
+            return;
+        }
+        if (typeof fetch !== 'function') {
+            show('No se pudo guardar tu mensaje. Inténtalo de nuevo.');
+            return;
+        }
+
+        contactSubmitting = true;
+        const submitButton = form.querySelector('button[type="submit"]');
+        if (submitButton) submitButton.disabled = true;
+        show('Enviando mensaje…');
+        try {
+            const response = await fetch('/api/contact', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) throw new Error('Contact request was rejected');
+            show('¡Mensaje recibido! Gracias por escribirnos.');
+            form.reset();
+        } catch (error) {
+            show('No se pudo guardar tu mensaje. Inténtalo de nuevo.');
+        } finally {
+            contactSubmitting = false;
+            if (submitButton) submitButton.disabled = false;
+        }
     });
 }
 

@@ -22,22 +22,18 @@
         roundLaps: 'pt_sector_roundLaps',
         state: 'pt_sector_sessionState'
     };
-    const firebaseConfig = {
-        apiKey: "AIzaSyA60d4enyr9wtCS4_uQ0EfFYvhZlMLVHj8",
-        authDomain: "pruebaspacetrack.firebaseapp.com",
-        databaseURL: "https://pruebaspacetrack-default-rtdb.europe-west1.firebasedatabase.app",
-        projectId: "pruebaspacetrack",
-        storageBucket: "pruebaspacetrack.firebasestorage.app",
-        messagingSenderId: "788636325664",
-        appId: "1:788636325664:web:1a383742bf31ab3f736945"
-    };
-    let db = null;
     let runtime = null;
     let pc = null;
     let dataChannel = null;
     let roomRef = null;
-    let listeners = [];
     let candidateQueue = [];
+    const MAX_SDP_LENGTH = 65536;
+    const MAX_CANDIDATE_LENGTH = 2048;
+    const MAX_ICE_CANDIDATES = 128;
+    let outgoingCandidateCount = 0;
+    let incomingCandidateCount = 0;
+    let signalPoll = null;
+    let seenRemoteCandidateIds = new Set();
     let connectionTimer = null;
     let disconnectTimer = null;
     let clockTimer = null;
@@ -84,6 +80,8 @@
     let syncStatusKind = null;
     let storageFailureMessage = '';
     const rejectedStartAttempts = new Map();
+    const ICE_WARNING = 'Aviso: conexión STUN sin retransmisión TURN; en redes restrictivas puede no ser posible emparejar las estaciones.';
+    const FRESH_INVITATION_REQUIRED = 'La sala ya fue enlazada; salida debe crear otra sala y compartir la nueva invitación.';
 
     const formatTime = ms => {
         const safe = Math.max(0, Number(ms) || 0);
@@ -92,9 +90,10 @@
     const currentRunner = () => runners[currentRunnerIndex] || { id: currentRunnerIndex + 1, name: `Corredor ${currentRunnerIndex + 1}` };
     const p2pStatus = text => { $('p2p-status').textContent = text; };
     const renderSyncStatus = () => {
-        const text = storageFailureMessage
+        const status = storageFailureMessage
             ? `${syncStatusText}\nADVERTENCIA: ${storageFailureMessage} Los datos siguen disponibles para exportar en este dispositivo.`
             : syncStatusText;
+        const text = `${status}\n${ICE_WARNING}`;
         $('p2p-sync-status').textContent = text;
         if (runtime && typeof runtime.setSync === 'function') {
             const statusKind = storageFailureMessage ? 'error' : syncStatusKind ||
@@ -110,6 +109,53 @@
         renderSyncStatus();
     };
 
+    function validInvitation(code) {
+        return typeof code === 'string' && /^[a-f0-9]{32}$/.test(code);
+    }
+
+    function validDescription(description, expectedType) {
+        return !!description && typeof description === 'object' && !Array.isArray(description) &&
+            ['offer', 'answer'].includes(description.type) &&
+            (!expectedType || description.type === expectedType) &&
+            typeof description.sdp === 'string' && description.sdp.length > 0 &&
+            (description.sdp.startsWith('v=0\r\n') || description.sdp.startsWith('v=0\n')) &&
+            description.sdp.length <= MAX_SDP_LENGTH && !/[^\t\n\r\x20-\x7e]/.test(description.sdp);
+    }
+
+    function validIceCandidate(candidate) {
+        if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate) ||
+            typeof candidate.candidate !== 'string' || candidate.candidate.length > MAX_CANDIDATE_LENGTH ||
+            !/^candidate:[A-Za-z0-9+/]+ \d{1,3} [A-Za-z]+ \d{1,10} [A-Za-z0-9:.%_-]+ \d{1,5} typ [A-Za-z]+(?: [\x20-\x7e]+)?$/i.test(candidate.candidate)) return false;
+        const validMid = candidate.sdpMid === null || candidate.sdpMid === undefined ||
+            (typeof candidate.sdpMid === 'string' && candidate.sdpMid.length > 0 && candidate.sdpMid.length <= 128 &&
+                !/[\u0000-\u001f\u007f]/.test(candidate.sdpMid));
+        const validLine = candidate.sdpMLineIndex === null || candidate.sdpMLineIndex === undefined ||
+            (Number.isInteger(candidate.sdpMLineIndex) && candidate.sdpMLineIndex >= 0 && candidate.sdpMLineIndex <= 255);
+        const validUfrag = candidate.usernameFragment === null || candidate.usernameFragment === undefined ||
+            (typeof candidate.usernameFragment === 'string' && candidate.usernameFragment.length <= 256 &&
+                !/[\u0000-\u001f\u007f]/.test(candidate.usernameFragment));
+        return validMid && validLine && validUfrag && (candidate.sdpMid != null || candidate.sdpMLineIndex != null);
+    }
+
+    function takeIceQuota(direction) {
+        if (direction === 'outgoing') {
+            if (outgoingCandidateCount >= MAX_ICE_CANDIDATES) return false;
+            outgoingCandidateCount++;
+            return true;
+        }
+        if (direction === 'incoming') {
+            if (incomingCandidateCount >= MAX_ICE_CANDIDATES) return false;
+            incomingCandidateCount++;
+            return true;
+        }
+        return false;
+    }
+
+    function rejectSignal(message = 'Se descartó una señal de conexión inválida o demasiado grande.') {
+        p2pSyncStatus(message, 'error');
+        return false;
+    }
+
     function showMessageBox(message) {
         messageContent.textContent = message;
         messageBox.style.display = 'block';
@@ -118,7 +164,7 @@
     function isCurrentGeneration(generation) { return generation === rtcGeneration; }
     function makeIdentity(prefix) {
         attemptSequence++;
-        return `${prefix}:${sessionId || 'local'}:${attemptSequence}:${performance.now().toString(36)}:${Math.random().toString(36).slice(2)}`;
+        return `${prefix}:${sessionId || 'local'}:${attemptSequence}:${performance.now().toString(36)}`;
     }
 
     function findAttemptLap(attemptId) {
@@ -188,21 +234,56 @@
         return !reason;
     }
 
-    function removeOwnedRoom(ref, ownerSession) {
-        if (!ref || !ownerSession) return Promise.resolve();
-        return ref.transaction(current => current && current.sessionId === ownerSession ? null : undefined)
-            .catch(() => {});
+    function sessionApi() {
+        const api = window.PaceTrackSessionAPI;
+        if (!api || typeof api.create !== 'function' || typeof api.join !== 'function' ||
+            typeof api.request !== 'function' || typeof api.save !== 'function' ||
+            typeof api.load !== 'function' || typeof api.saveInvitation !== 'function' ||
+            typeof api.loadInvitation !== 'function') return null;
+        return api;
     }
 
-    function removeAnswerIfMatches(ref, ownerSession, answer) {
-        if (!ref || !ownerSession || !answer) return Promise.resolve();
-        return ref.transaction(current => {
-            if (!current || current.sessionId !== ownerSession || !current.answer ||
-                current.answer.sdp !== answer.sdp) return undefined;
-            const next = { ...current };
-            delete next.answer;
-            return next;
-        }).catch(() => {});
+    function validSession(session) {
+        return !!session && typeof session === 'object' &&
+            typeof session.id === 'string' &&
+            /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(session.id) &&
+            typeof session.token === 'string' && /^[A-Za-z0-9_-]{43}$/.test(session.token) &&
+            typeof session.expiresAt === 'string' && Number.isFinite(Date.parse(session.expiresAt));
+    }
+
+    function sessionExpiredAt(session) {
+        return !!session && Number.isFinite(Date.parse(session.expiresAt)) && Date.parse(session.expiresAt) <= Date.now();
+    }
+
+    function sessionExpired(error) {
+        return !!error && (error.status === 401 || error.status === 403 || error.status === 404 || error.status === 410 ||
+            /expired|expirad|revoked|unauthori[sz]ed|forbidden|not found|no existe|cerrad/i.test(String(error.message || '')));
+    }
+
+    function clearGuestSession(api, invitation, session) {
+        let clearedInvitation = false;
+        let clearedGuest = false;
+        try { clearedInvitation = api.saveInvitation('sector', invitation, null) === true; } catch (_) {}
+        try { clearedGuest = api.save('guest', null) === true; } catch (_) {}
+        let storage = null;
+        try { storage = window.localStorage; } catch (_) {}
+        if (storage && typeof storage.removeItem === 'function') {
+            if (!clearedInvitation && validInvitation(invitation)) {
+                try { storage.removeItem(`pacetrack.invite.v1:sector:${invitation}`); } catch (_) {}
+            }
+            if (!clearedGuest && session && typeof session.id === 'string') {
+                try { storage.removeItem(`pacetrack.access.v1:guest:${session.id}`); } catch (_) {}
+            }
+        }
+        if (!session || sessionId === session.id) sessionId = null;
+        if (roomRef && roomRef.role === 'stop' && (!session || roomRef.session.id === session.id)) roomRef = null;
+    }
+
+    async function removeOwnedRoom(ref, ownerSession) {
+        if (!ref || ref.role !== 'start' || !ref.session || !ownerSession ||
+            ref.session.id !== ownerSession || !sessionApi()) return;
+        try { await sessionApi().request(ref.session, '', { method: 'DELETE' }); }
+        catch (_) {}
     }
 
     function saveLaps() {
@@ -927,20 +1008,14 @@
 
     function getIceConfiguration() {
         return {
-            iceServers: [
-                { urls: 'stun:stun.relay.metered.ca:80' },
-                { urls: 'turn:global.relay.metered.ca:80', username: 'c1208ba0e8230537122cf693', credential: 'U4ffWBruWxpMqEir' },
-                { urls: 'turn:global.relay.metered.ca:80?transport=tcp', username: 'c1208ba0e8230537122cf693', credential: 'U4ffWBruWxpMqEir' },
-                { urls: 'turn:global.relay.metered.ca:443', username: 'c1208ba0e8230537122cf693', credential: 'U4ffWBruWxpMqEir' },
-                { urls: 'turns:global.relay.metered.ca:443?transport=tcp', username: 'c1208ba0e8230537122cf693', credential: 'U4ffWBruWxpMqEir' }
-            ],
+            iceServers: [{ urls: 'stun:stun.relay.metered.ca:80' }],
             iceCandidatePoolSize: 10
         };
     }
 
     function stopListeners() {
-        for (const [ref, event, callback] of listeners) ref.off(event, callback);
-        listeners = [];
+        if (signalPoll && signalPoll.timer) clearTimeout(signalPoll.timer);
+        signalPoll = null;
     }
 
     function cleanupRTC({ keepRole = false, message = 'Modo local · este dispositivo' } = {}) {
@@ -985,6 +1060,9 @@
         timerState = 'stopped';
         startTime = null;
         candidateQueue = [];
+        seenRemoteCandidateIds = new Set();
+        outgoingCandidateCount = 0;
+        incomingCandidateCount = 0;
         if (dataChannel) {
             dataChannel.onopen = dataChannel.onclose = dataChannel.onerror = dataChannel.onmessage = null;
             try { dataChannel.close(); } catch (_) {}
@@ -1012,18 +1090,32 @@
         const pending = candidateQueue;
         candidateQueue = [];
         pending.forEach(candidate => operationPc.addIceCandidate(new RTCIceCandidate(candidate)).catch(error => {
-            if (isCurrentGeneration(generation)) p2pSyncStatus(`No se pudo completar la conexión. Reintenta la sala: ${error.message}`);
+            if (isCurrentGeneration(generation)) rejectSignal('No se pudo aplicar una señal ICE válida. Comprueba la conexión e inténtalo de nuevo.');
         }));
     }
 
     async function addRemoteCandidate(candidate, operationPc, generation) {
-        if (!isCurrentGeneration(generation) || pc !== operationPc || !operationPc) return;
+        if (!isCurrentGeneration(generation) || pc !== operationPc || !operationPc) return false;
+        if (!takeIceQuota('incoming')) return rejectSignal('Se alcanzó el límite de señales ICE de esta sesión; vuelve a enlazar.');
+        if (!validIceCandidate(candidate)) return rejectSignal();
+        const safeCandidate = {
+            candidate: candidate.candidate,
+            sdpMid: candidate.sdpMid ?? null,
+            sdpMLineIndex: candidate.sdpMLineIndex ?? null,
+            ...(candidate.usernameFragment == null ? {} : { usernameFragment: candidate.usernameFragment })
+        };
         if (!operationPc.remoteDescription) {
-            candidateQueue.push(candidate);
-            return;
+            if (candidateQueue.length >= MAX_ICE_CANDIDATES) return rejectSignal('La cola de señales ICE alcanzó su límite; vuelve a enlazar.');
+            candidateQueue.push(safeCandidate);
+            return true;
         }
-        try { await operationPc.addIceCandidate(new RTCIceCandidate(candidate)); }
-        catch (error) { if (isCurrentGeneration(generation)) p2pSyncStatus(`Error al establecer la conexión. Puedes reintentar: ${error.message}`); }
+        try {
+            await operationPc.addIceCandidate(new RTCIceCandidate(safeCandidate));
+            return true;
+        } catch (_) {
+            if (isCurrentGeneration(generation)) rejectSignal('No se pudo aplicar una señal ICE válida. Comprueba la conexión e inténtalo de nuevo.');
+            return false;
+        }
     }
 
     function connectionChanged(generation, operationPc) {
@@ -1054,15 +1146,231 @@
         }
     }
 
-    async function publishCandidate(target, candidate, generation) {
+    async function publishCandidate(candidate, generation) {
         if (!isCurrentGeneration(generation)) return;
-        const candidateRef = target.push();
+        if (!validIceCandidate(candidate)) return rejectSignal();
+        if (!takeIceQuota('outgoing')) return rejectSignal('Se alcanzó el límite de señales ICE de esta sesión; vuelve a enlazar.');
+        const activeRoom = roomRef;
+        const api = sessionApi();
+        if (!activeRoom || !activeRoom.session || !api) return;
+        const safeCandidate = {
+            candidate: candidate.candidate,
+            sdpMid: candidate.sdpMid ?? null,
+            sdpMLineIndex: candidate.sdpMLineIndex ?? null,
+            ...(candidate.usernameFragment == null ? {} : { usernameFragment: candidate.usernameFragment })
+        };
         try {
-            await candidateRef.set(candidate);
-            if (!isCurrentGeneration(generation)) await candidateRef.remove();
-        } catch (error) {
-            if (isCurrentGeneration(generation)) p2pSyncStatus(`No se pudo enviar información de conexión: ${error.message}`);
+            await api.request(activeRoom.session, '/signals', {
+                method: 'POST',
+                body: { type: 'candidate', candidate: safeCandidate }
+            });
+        } catch (_) {
+            if (isCurrentGeneration(generation) && roomRef === activeRoom) rejectSignal('No se pudo enviar la señal ICE.');
         }
+    }
+
+    async function sendDescription(session, type, description, generation) {
+        if (!validDescription(description, type)) throw new Error('La descripción SDP es inválida o supera el límite permitido.');
+        const api = sessionApi();
+        if (!api) throw new Error('El servicio de sincronización no está disponible.');
+        await api.request(session, '/signals', {
+            method: 'POST',
+            body: { type, sdp: description.sdp }
+        });
+        if (!isCurrentGeneration(generation)) return false;
+        return true;
+    }
+
+    function expiredStatus() {
+        return 'La sesión expiró o dejó de estar autorizada. Pide una invitación nueva a salida.';
+    }
+
+    function requireFreshInvitation(api, invitation, session) {
+        clearGuestSession(api, invitation, session);
+        const invitationInput = $('p2p-room-id');
+        if (invitationInput.value === invitation) invitationInput.value = '';
+        $('p2p-create').disabled = $('p2p-join').disabled = false;
+        p2pStatus('La sala ya fue enlazada · solicita una invitación nueva');
+        p2pSyncStatus(FRESH_INVITATION_REQUIRED, 'error');
+    }
+
+    function rememberPublishedAnswer(state) {
+        if (!state || !state.session) return;
+        state.session.answerPublished = true;
+        const api = sessionApi();
+        if (!api) return;
+        try { api.save('guest', state.session); } catch (_) {}
+        try { api.saveInvitation('sector', state.invitation, state.session); } catch (_) {}
+    }
+
+    function stopSignalPolling(state) {
+        if (state && state.timer) clearTimeout(state.timer);
+        if (signalPoll === state) signalPoll = null;
+    }
+
+    function shouldStopSignalPolling(state) {
+        if (state.polls >= 180) return true;
+        const connectionState = state.pc.connectionState || state.pc.iceConnectionState;
+        if (!['connected', 'completed'].includes(connectionState) || state.pc.iceGatheringState !== 'complete') return false;
+        const now = Date.now();
+        if (!state.connectedAt) state.connectedAt = now;
+        return now - Math.max(state.connectedAt, state.lastRemoteCandidateAt) >= 5000;
+    }
+
+    async function applyPolledDescription(state, description) {
+        const expectedType = state.role === 'start' ? 'answer' : 'offer';
+        if (!validDescription(description, expectedType)) {
+            state.failed = true;
+            rejectSignal('Se descartó una descripción SDP inválida o demasiado grande.');
+            return;
+        }
+        if (state.descriptionApplied || state.descriptionPending) return;
+        state.descriptionPending = true;
+        try {
+            await state.pc.setRemoteDescription(new RTCSessionDescription({
+                type: description.type,
+                sdp: description.sdp
+            }));
+            if (!isCurrentGeneration(state.generation) || pc !== state.pc) return;
+            remoteDescriptionSet(state.pc, state.generation);
+            state.descriptionApplied = true;
+            if (state.role === 'stop') {
+                const answer = await state.pc.createAnswer();
+                if (!isCurrentGeneration(state.generation) || pc !== state.pc) return;
+                if (!validDescription(answer, 'answer')) throw new Error('La descripción SDP de llegada es inválida o demasiado grande.');
+                await state.pc.setLocalDescription(answer);
+                if (!isCurrentGeneration(state.generation) || pc !== state.pc) return;
+                const localAnswer = {
+                    type: state.pc.localDescription.type,
+                    sdp: state.pc.localDescription.sdp
+                };
+                if (!validDescription(localAnswer, 'answer')) throw new Error('La descripción SDP de llegada es inválida o demasiado grande.');
+                const sent = await sendDescription(state.session, 'answer', localAnswer, state.generation);
+                if (sent) rememberPublishedAnswer(state);
+            }
+        } catch (error) {
+            if (isCurrentGeneration(state.generation)) {
+                if (state.role === 'stop' && error && error.status === 409) {
+                    state.requiresFreshInvitation = true;
+                    state.failed = true;
+                    return;
+                }
+                state.expired = sessionExpired(error);
+                state.failed = true;
+                rejectSignal(state.expired ? expiredStatus() : 'No se pudo aplicar la descripción SDP recibida.');
+            }
+        } finally {
+            state.descriptionPending = false;
+        }
+    }
+
+    async function pollSessionSignals(state) {
+        if (!state || signalPoll !== state || !isCurrentGeneration(state.generation) ||
+            pc !== state.pc || state.busy || state.failed) return;
+        state.busy = true;
+        state.polls++;
+        try {
+            const api = sessionApi();
+            if (!api) throw new Error('El servicio de sincronización no está disponible.');
+            const signals = await api.request(state.session, '/signals', { method: 'GET' });
+            if (signalPoll !== state || !isCurrentGeneration(state.generation) || pc !== state.pc) return;
+            if (!signals || typeof signals !== 'object' || !Array.isArray(signals.candidates) ||
+                signals.candidates.length > MAX_ICE_CANDIDATES) {
+                state.failed = true;
+                rejectSignal('La respuesta de señalización es inválida o supera el límite permitido.');
+                return;
+            }
+            if (signals.closed === true) {
+                state.expired = true;
+                state.failed = true;
+                return;
+            }
+            if (signals.description !== null && signals.description !== undefined && !state.descriptionApplied) {
+                await applyPolledDescription(state, signals.description);
+                if (!isCurrentGeneration(state.generation) || pc !== state.pc || state.failed) return;
+            }
+            for (const item of signals.candidates) {
+                if (!isCurrentGeneration(state.generation) || pc !== state.pc || signalPoll !== state) return;
+                if (!item || !Number.isSafeInteger(item.id) || item.id < 1) {
+                    state.failed = true;
+                    rejectSignal('Se descartó una señal ICE inválida.');
+                    return;
+                }
+                if (seenRemoteCandidateIds.has(item.id)) continue;
+                seenRemoteCandidateIds.add(item.id);
+                if (seenRemoteCandidateIds.size > MAX_ICE_CANDIDATES) {
+                    state.failed = true;
+                    rejectSignal('Se alcanzó el límite de señales ICE de esta sesión.');
+                    return;
+                }
+                const accepted = await addRemoteCandidate(item.candidate, state.pc, state.generation);
+                if (!accepted) {
+                    state.failed = true;
+                    return;
+                }
+                state.lastRemoteCandidateAt = Date.now();
+            }
+        } catch (error) {
+            if (signalPoll !== state || !isCurrentGeneration(state.generation)) return;
+            if (sessionExpired(error)) {
+                state.expired = true;
+                state.failed = true;
+            } else if (state.polls === 1) {
+                p2pSyncStatus('Esperando señalización del otro dispositivo…', 'pending');
+            }
+        } finally {
+            state.busy = false;
+            if (signalPoll !== state || !isCurrentGeneration(state.generation) || pc !== state.pc) return;
+            if (state.requiresFreshInvitation) {
+                const api = sessionApi();
+                clearGuestSession(api, state.invitation, state.session);
+                stopSignalPolling(state);
+                cleanupRTC({ keepRole: true, message: 'Sala ya enlazada · salida debe crear otra sala' });
+                p2pSyncStatus(FRESH_INVITATION_REQUIRED, 'error');
+                return;
+            }
+            if (state.expired) {
+                const api = sessionApi();
+                if (state.role === 'stop') clearGuestSession(api, state.invitation, state.session);
+                cleanupRTC({ keepRole: true, message: 'Sesión cerrada · vuelve a enlazar' });
+                p2pSyncStatus(expiredStatus(), 'error');
+                return;
+            }
+            if (state.failed) {
+                stopSignalPolling(state);
+                cleanupRTC({ keepRole: true, message: 'Señalización rechazada · vuelve a enlazar' });
+                return;
+            }
+            if (shouldStopSignalPolling(state)) {
+                stopSignalPolling(state);
+                if (!['connected', 'completed'].includes(state.pc.connectionState) &&
+                    !['connected', 'completed'].includes(state.pc.iceConnectionState)) {
+                    cleanupRTC({ keepRole: true, message: 'La sesión no completó la conexión · vuelve a enlazar' });
+                    p2pSyncStatus('Se agotó el tiempo de señalización. Pide una nueva invitación o vuelve a intentarlo.', 'error');
+                }
+                return;
+            }
+            state.timer = setTimeout(() => pollSessionSignals(state), 1000);
+        }
+    }
+
+    function startSignalPolling(session, invitation, operationPc, generation) {
+        const state = {
+            session, invitation, pc: operationPc, generation, role,
+            timer: null, busy: false, polls: 0, descriptionApplied: false,
+            descriptionPending: false, lastRemoteCandidateAt: 0, connectedAt: 0,
+            expired: false, failed: false, requiresFreshInvitation: false
+        };
+        signalPoll = state;
+        pollSessionSignals(state);
+        connectionTimer = setTimeout(() => {
+            if (isCurrentGeneration(generation) && pc === operationPc &&
+                !['connected', 'completed'].includes(operationPc.connectionState) &&
+                !['connected', 'completed'].includes(operationPc.iceConnectionState)) {
+                cleanupRTC({ keepRole: true, message: 'La sesión no conectó a tiempo · comprueba la invitación y vuelve a enlazar' });
+                p2pSyncStatus('No se completó la conexión en 45 segundos. Pide una nueva invitación o vuelve a intentarlo.', 'error');
+            }
+        }, 45000);
     }
 
     function validIncomingEvent(message) {
@@ -1382,8 +1690,12 @@
         };
     }
 
-    async function createRoom(roomId) {
-        if (!firebaseAvailable()) return;
+    async function createRoom() {
+        const api = sessionApi();
+        if (!api || typeof RTCPeerConnection === 'undefined') {
+            p2pStatus('Sin sincronización · modo local disponible');
+            return p2pSyncStatus('El servicio de sesiones o WebRTC no está disponible en este navegador.', 'error');
+        }
         if ((timerState === 'running' || awaitingResult) &&
             !confirm('Crear una nueva sala interrumpirá el intento actual. ¿Continuar?')) return;
         abortRun('se cambió la conexión', false, null, true);
@@ -1392,21 +1704,25 @@
         displayLaps();
         updateRoleStatus();
         const generation = rtcGeneration;
-        const newSession = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-        sessionId = newSession;
-        const operationRoomRef = db.ref(`rooms/${roomId}`);
-        roomRef = operationRoomRef;
-        p2pStatus('Creando sala…');
+        p2pStatus('Creando sala segura…');
         $('p2p-create').disabled = $('p2p-join').disabled = true;
-        let claimed = false;
+        let createdSession = null;
+        let operationRoomRef = null;
         try {
-            const created = await operationRoomRef.child('sessionId').transaction(value => value == null ? newSession : undefined);
-            claimed = created.committed;
+            const created = await api.create('sector');
+            if (!validSession(created) || sessionExpiredAt(created)) throw new Error('El servicio devolvió una sesión inválida o expirada.');
+            createdSession = { id: created.id, token: created.token, expiresAt: created.expiresAt };
+            operationRoomRef = { role: 'start', session: createdSession };
             if (!isCurrentGeneration(generation)) {
-                if (claimed) await removeOwnedRoom(operationRoomRef, newSession);
+                await removeOwnedRoom(operationRoomRef, createdSession.id);
                 return;
             }
-            if (!created.committed) throw new Error('Ese código ya está en uso. Elige otro código para una sala nueva.');
+            roomRef = operationRoomRef;
+            sessionId = createdSession.id;
+            if (!validInvitation(created.invite)) throw new Error('El servicio no devolvió una invitación válida.');
+            operationRoomRef.invitation = created.invite;
+            $('p2p-room-id').value = created.invite;
+            if (!api.save('owner', createdSession)) throw new Error('No se pudo guardar la sesión de salida de forma segura en este dispositivo.');
             const operationPc = new RTCPeerConnection(getIceConfiguration());
             pc = operationPc;
             const channel = operationPc.createDataChannel('pacetrack-timing-v1');
@@ -1414,60 +1730,43 @@
             setupDataChannelEvents(channel, generation);
             operationPc.onicecandidate = event => {
                 if (isCurrentGeneration(generation) && pc === operationPc && event.candidate) {
-                    publishCandidate(operationRoomRef.child('hostCandidates'), event.candidate.toJSON(), generation);
+                    publishCandidate(event.candidate.toJSON(), generation);
                 }
             };
             operationPc.onconnectionstatechange = operationPc.oniceconnectionstatechange =
                 () => connectionChanged(generation, operationPc);
             const offer = await operationPc.createOffer();
             if (!isCurrentGeneration(generation) || pc !== operationPc) return;
+            if (!validDescription(offer, 'offer')) throw new Error('La descripción SDP de salida es inválida o supera el límite permitido.');
             await operationPc.setLocalDescription(offer);
             if (!isCurrentGeneration(generation) || pc !== operationPc) return;
-            const offerDescription = {
-                type: operationPc.localDescription.type,
-                sdp: operationPc.localDescription.sdp
-            };
-            await operationRoomRef.child('offer').set(offerDescription);
+            const localOffer = { type: operationPc.localDescription.type, sdp: operationPc.localDescription.sdp };
+            if (!validDescription(localOffer, 'offer')) throw new Error('La descripción SDP de salida es inválida o supera el límite permitido.');
+            await sendDescription(createdSession, 'offer', localOffer, generation);
             if (!isCurrentGeneration(generation) || pc !== operationPc) {
-                await removeOwnedRoom(operationRoomRef, newSession);
+                await removeOwnedRoom(operationRoomRef, createdSession.id);
                 return;
             }
-            const answerListener = snapshot => {
-                if (!isCurrentGeneration(generation) || pc !== operationPc) return;
-                if (snapshot.exists() && !operationPc.remoteDescription) {
-                    operationPc.setRemoteDescription(new RTCSessionDescription(snapshot.val()))
-                        .then(() => remoteDescriptionSet(operationPc, generation))
-                        .catch(error => {
-                            if (isCurrentGeneration(generation)) p2pSyncStatus(`No se pudo aceptar la llegada: ${error.message}`);
-                        });
-                }
-            };
-            operationRoomRef.child('answer').on('value', answerListener);
-            listeners.push([operationRoomRef.child('answer'), 'value', answerListener]);
-            const candidatesRef = operationRoomRef.child('guestCandidates');
-            const candidatesListener = snapshot => addRemoteCandidate(snapshot.val(), operationPc, generation);
-            candidatesRef.on('child_added', candidatesListener);
-            listeners.push([candidatesRef, 'child_added', candidatesListener]);
-            p2pStatus(`Sala ${roomId} creada · comparte el código con llegada`);
-            p2pSyncStatus('Esperando a que la llegada entre en esta sala…');
-            connectionTimer = setTimeout(() => {
-                if (isCurrentGeneration(generation) && pc === operationPc && operationPc.connectionState !== 'connected') {
-                    cleanupRTC({ keepRole: true, message: 'La sala no conectó a tiempo · revisa el código y reintenta' });
-                    p2pSyncStatus('Puedes intentar otra vez o pasar explícitamente al modo local.');
-                }
-            }, 45000);
+            p2pStatus('Sala creada · comparte la invitación con llegada');
+            p2pSyncStatus('Esperando a que llegada use la invitación…', 'pending');
+            startSignalPolling(createdSession, created.invite, operationPc, generation);
         } catch (error) {
             if (!isCurrentGeneration(generation)) {
-                if (claimed) await removeOwnedRoom(operationRoomRef, newSession);
+                if (operationRoomRef && createdSession) await removeOwnedRoom(operationRoomRef, createdSession.id);
                 return;
             }
             cleanupRTC({ message: 'No se pudo crear la sala' });
-            p2pSyncStatus(`${error.message} Comprueba la conexión e inténtalo de nuevo.`);
+            p2pSyncStatus(error.message || 'No se pudo crear la sala segura.', 'error');
         }
     }
 
-    async function joinRoom(roomId) {
-        if (!firebaseAvailable()) return;
+    async function joinRoom(invitation) {
+        if (!validInvitation(invitation)) return rejectSignal('Escribe exactamente la invitación de 32 caracteres hexadecimales que te compartió salida.');
+        const api = sessionApi();
+        if (!api || typeof RTCPeerConnection === 'undefined') {
+            p2pStatus('Sin sincronización · modo local disponible');
+            return p2pSyncStatus('El servicio de sesiones o WebRTC no está disponible en este navegador.', 'error');
+        }
         if ((timerState === 'running' || awaitingResult) &&
             !confirm('Entrar en otra sala interrumpirá el intento actual. ¿Continuar?')) return;
         abortRun('se cambió la conexión', false, null, true);
@@ -1477,19 +1776,44 @@
         updateRoleStatus();
         const generation = rtcGeneration;
         $('p2p-create').disabled = $('p2p-join').disabled = true;
-        p2pStatus('Buscando sala…');
-        const operationRoomRef = db.ref(`rooms/${roomId}`);
-        roomRef = operationRoomRef;
+        p2pStatus('Buscando sesión segura…');
         let joinedSession = null;
-        let savedAnswer = null;
+        let fromCache = false;
         try {
-            const snapshot = await operationRoomRef.once('value');
-            if (!isCurrentGeneration(generation)) return;
-            if (!snapshot.exists() || !snapshot.val().offer || !snapshot.val().sessionId) {
-                throw new Error('No encontramos una salida activa con ese código. Comprueba el código e inténtalo otra vez.');
+            joinedSession = api.loadInvitation('sector', invitation);
+            fromCache = !!joinedSession;
+            if (fromCache) {
+                const savedSession = api.load('guest', joinedSession.id);
+                if (validSession(savedSession)) joinedSession = savedSession;
+                if (!validSession(joinedSession) || sessionExpiredAt(joinedSession)) {
+                    clearGuestSession(api, invitation, joinedSession);
+                    throw Object.assign(new Error('La sesión guardada ya no es válida.'), { status: 410 });
+                }
+            } else {
+                joinedSession = await api.join('sector', invitation);
+                if (!validSession(joinedSession) || sessionExpiredAt(joinedSession)) {
+                    throw Object.assign(new Error('La invitación expiró antes de iniciar la sesión.'), { status: 410 });
+                }
+                if (!api.save('guest', joinedSession) || !api.saveInvitation('sector', invitation, joinedSession)) {
+                    throw new Error('No se pudo guardar la sesión de llegada para reconectar de forma segura.');
+                }
             }
-            joinedSession = snapshot.val().sessionId;
-            sessionId = joinedSession;
+            if (!isCurrentGeneration(generation)) return;
+            const priorSignals = await api.request(joinedSession, '/signals', { method: 'GET' });
+            if (!isCurrentGeneration(generation)) return;
+            if (!priorSignals || typeof priorSignals !== 'object' || typeof priorSignals.answered !== 'boolean') {
+                throw new Error('La respuesta de señalización no indica si llegada ya fue enlazada.');
+            }
+            if (priorSignals.closed === true) {
+                throw Object.assign(new Error('La sala ya está cerrada.'), { status: 410 });
+            }
+            if (priorSignals.answered || joinedSession.answerPublished === true) {
+                requireFreshInvitation(api, invitation, joinedSession);
+                return;
+            }
+            sessionId = joinedSession.id;
+            const operationRoomRef = { role: 'stop', session: joinedSession, invitation };
+            roomRef = operationRoomRef;
             const operationPc = new RTCPeerConnection(getIceConfiguration());
             pc = operationPc;
             operationPc.ondatachannel = event => {
@@ -1499,68 +1823,26 @@
             };
             operationPc.onicecandidate = event => {
                 if (isCurrentGeneration(generation) && pc === operationPc && event.candidate) {
-                    publishCandidate(operationRoomRef.child('guestCandidates'), event.candidate.toJSON(), generation);
+                    publishCandidate(event.candidate.toJSON(), generation);
                 }
             };
             operationPc.onconnectionstatechange = operationPc.oniceconnectionstatechange =
                 () => connectionChanged(generation, operationPc);
-            await operationPc.setRemoteDescription(new RTCSessionDescription(snapshot.val().offer));
-            if (!isCurrentGeneration(generation) || pc !== operationPc) return;
-            remoteDescriptionSet(operationPc, generation);
-            const answer = await operationPc.createAnswer();
-            if (!isCurrentGeneration(generation) || pc !== operationPc) return;
-            await operationPc.setLocalDescription(answer);
-            if (!isCurrentGeneration(generation) || pc !== operationPc) return;
-            savedAnswer = {
-                type: operationPc.localDescription.type,
-                sdp: operationPc.localDescription.sdp
-            };
-            await operationRoomRef.child('answer').set(savedAnswer);
-            if (!isCurrentGeneration(generation) || pc !== operationPc) {
-                await removeAnswerIfMatches(operationRoomRef, joinedSession, savedAnswer);
-                return;
-            }
-            const candidatesRef = operationRoomRef.child('hostCandidates');
-            const candidatesListener = candidate => addRemoteCandidate(candidate.val(), operationPc, generation);
-            candidatesRef.on('child_added', candidatesListener);
-            listeners.push([candidatesRef, 'child_added', candidatesListener]);
-            p2pStatus(`Entrando en sala ${roomId} como llegada…`);
-            p2pSyncStatus('Esperando conexión con salida…');
-            connectionTimer = setTimeout(() => {
-                if (isCurrentGeneration(generation) && pc === operationPc && operationPc.connectionState !== 'connected') {
-                    cleanupRTC({ keepRole: true, message: 'No se pudo conectar a tiempo · revisa el código e inténtalo de nuevo' });
-                    p2pSyncStatus('Puedes intentar otra vez o pasar explícitamente al modo local.');
-                }
-            }, 45000);
+            p2pStatus('Esperando la oferta de salida…');
+            p2pSyncStatus(fromCache
+                ? 'Recuperando la sesión de llegada guardada…'
+                : 'Esperando la señalización de salida…', 'pending');
+            startSignalPolling(joinedSession, invitation, operationPc, generation);
         } catch (error) {
-            if (!isCurrentGeneration(generation)) {
-                if (savedAnswer && joinedSession) await removeAnswerIfMatches(operationRoomRef, joinedSession, savedAnswer);
-                return;
-            }
-            cleanupRTC({ message: 'No se pudo entrar en la sala' });
-            p2pSyncStatus(`${error.message} La cámara y el cronometraje local siguen disponibles.`);
+            if (!isCurrentGeneration(generation)) return;
+            if (joinedSession && sessionExpired(error)) clearGuestSession(api, invitation, joinedSession);
+            cleanupRTC({ message: 'No se pudo entrar en la sesión' });
+            p2pSyncStatus(sessionExpired(error)
+                ? expiredStatus()
+                : error && error.message === 'No se pudo guardar la sesión de llegada para reconectar de forma segura.'
+                    ? error.message
+                    : 'No se pudo abrir la sesión. Comprueba la invitación y vuelve a intentarlo.', 'error');
         }
-    }
-
-    function firebaseAvailable() {
-        if (!window.firebase || !firebase.apps || !firebase.database || typeof RTCPeerConnection === 'undefined') {
-            p2pStatus('Sin sincronización · modo local disponible');
-            p2pSyncStatus('Firebase o la conexión entre dispositivos no está disponible en este navegador. Usa el modo manual o activa cámara desde Preparar.');
-            return false;
-        }
-        try {
-            if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-            db = firebase.database();
-            return true;
-        } catch (error) {
-            p2pStatus('No se pudo iniciar la sincronización · modo local disponible');
-            p2pSyncStatus(`Error de Firebase: ${error.message}`);
-            return false;
-        }
-    }
-
-    function validRoomCode(code) {
-        return /^[\p{L}\p{N}_-]{3,32}$/u.test(code);
     }
 
     function exportData() {
@@ -1608,15 +1890,29 @@
     $('cancel-excel').onclick = () => { $('excel-modal').style.display = 'none'; $('setup-modal').style.display = 'flex'; window.tempExcelNames = null; };
     messageBoxOkButton.onclick = () => { messageBox.style.display = 'none'; };
     resetButton.onclick = resetSession;
-    $('p2p-create').onclick = () => {
-        const code = $('p2p-room-id').value.trim();
-        if (!validRoomCode(code)) return p2pSyncStatus('Usa un código de 3 a 32 letras, números, guion o guion bajo; compártelo con llegada.');
-        createRoom(code);
+    $('p2p-copy-code').onclick = async () => {
+        const input = $('p2p-room-id');
+        if (!validInvitation(input.value)) {
+            p2pSyncStatus('Crea una sala o introduce una invitación válida antes de copiarla.', 'error');
+            return;
+        }
+        try {
+            if (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') {
+                throw new Error('Portapapeles no disponible');
+            }
+            await navigator.clipboard.writeText(input.value);
+            p2pStatus('Código copiado · pégalo en el dispositivo de llegada');
+        } catch (_) {
+            input.focus();
+            input.select();
+            p2pStatus('Código seleccionado · usa Copiar y pégalo en llegada');
+        }
     };
+    $('p2p-create').onclick = () => createRoom();
     $('p2p-join').onclick = () => {
-        const code = $('p2p-room-id').value.trim();
-        if (!validRoomCode(code)) return p2pSyncStatus('Escribe el código de 3 a 32 letras, números, guion o guion bajo que te compartió salida.');
-        joinRoom(code);
+        const invitation = $('p2p-room-id').value;
+        if (!validInvitation(invitation)) return p2pSyncStatus('Escribe exactamente la invitación de 32 caracteres hexadecimales que te compartió salida; no se eliminan espacios.', 'error');
+        joinRoom(invitation);
     };
     $('p2p-ready').onclick = async () => {
         if (!sync || !syncConfirmed) return p2pSyncStatus('Espera a que termine la comprobación de hora.');
@@ -1750,7 +2046,7 @@
             },
             state() {
                 return JSON.parse(JSON.stringify({
-                    role, currentRunnerIndex, currentRound, timerState, awaitingResult,
+                    role, sessionId, currentRunnerIndex, currentRound, timerState, awaitingResult,
                     currentRunnerName: currentRunner().name, startTime, startPending,
                     pendingAttemptId, pendingAttemptMeta, resultRetryPending, runners,
                     localReadyConfirmed, localReadyId, pendingReadyId, peerReady, peerReadyId,
@@ -1766,7 +2062,28 @@
                     retryDisabled: $('p2p-retry-result').disabled,
                     syncStatus: $('p2p-sync-status').textContent
                 };
-            }
+            },
+            invitationValid: validInvitation,
+            descriptionValid: validDescription,
+            candidateValid: validIceCandidate,
+            iceConfiguration: getIceConfiguration,
+            takeIceQuota,
+            createRoom,
+            joinRoom,
+            cleanupRTC,
+            async pollNow() {
+                const state = signalPoll;
+                if (!state) return;
+                if (state.timer) clearTimeout(state.timer);
+                state.timer = null;
+                while (state.busy && signalPoll === state) await new Promise(resolve => setTimeout(resolve, 0));
+                if (signalPoll !== state) return;
+                if (state.timer) clearTimeout(state.timer);
+                state.timer = null;
+                return pollSessionSignals(state);
+            },
+            closeCurrent(options) { return cleanupRTC(options); },
+            resetIceQuotas() { outgoingCandidateCount = incomingCandidateCount = 0; }
         });
     }
 

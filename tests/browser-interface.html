@@ -4,8 +4,11 @@
 <title>PaceTrack interface browser checks</title>
 <pre id="results">RUNNING</pre>
 <script type="module">
+import { createSessionApiBrowserMock, installSessionApiBrowserMock } from './session-api-browser-mock.js';
+
 const results = document.getElementById('results');
 const checks = [];
+window.__pacetrackSessionMock = createSessionApiBrowserMock();
 function check(name, condition) {
   checks.push({ name, passed: Boolean(condition) });
 }
@@ -17,7 +20,18 @@ async function loadPage(url, width = 390) {
   const page = new URL(url, location.href);
   // This is a CSS regression check, not a camera or external-service test.
   const safe = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
-  frame.srcdoc = safe.replace(/<head>/i, `<head><base href="${page.href}">`);
+  const doc = new DOMParser().parseFromString(safe, 'text/html');
+  for (const script of doc.querySelectorAll('script[src]')) script.remove();
+  for (const link of doc.querySelectorAll('link[href]')) {
+    if (/^https?:/i.test(link.getAttribute('href'))) link.remove();
+  }
+  const base = doc.createElement('base');
+  base.href = page.href;
+  doc.head.prepend(base);
+  const setup = doc.createElement('script');
+  setup.textContent = '(' + installSessionApiBrowserMock.toString() + ')(false);';
+  doc.head.insertBefore(setup, base.nextSibling);
+  frame.srcdoc = '<!doctype html>' + doc.documentElement.outerHTML;
   await new Promise(resolve => frame.addEventListener('load', resolve, { once: true }));
   return frame;
 }
@@ -60,6 +74,7 @@ try {
     check(`${url} manual label contrast`, style.color !== panel.backgroundColor);
     frame.remove();
   }
+  check('interface fixture made no API requests', window.__pacetrackSessionMock.calls.length === 0);
   results.textContent = JSON.stringify({ passed: checks.every(item => item.passed), checks }, null, 2);
 } catch (error) {
   results.textContent = JSON.stringify({ passed: false, error: String(error), checks }, null, 2);

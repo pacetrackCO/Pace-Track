@@ -1,17 +1,6 @@
 (function () {
     'use strict';
 
-    const firebaseConfig = {
-        apiKey: "AIzaSyC_IPrOClJF0uIkQB_yIEMdZZ28AgCE4k",
-        authDomain: "pacetrack-579ef.firebaseapp.com",
-        databaseURL: "https://pacetrack-579ef-default-rtdb.europe-west1.firebasedatabase.app",
-        projectId: "pacetrack-579ef",
-        storageBucket: "pacetrack-579ef.firebasestorage.app",
-        messagingSenderId: "997850928548",
-        appId: "1:997850928548:web:ce6bf324a6a2c42d4bdd31",
-        measurementId: "G-M7E0JYMVGX"
-    };
-
     const byId = id => document.getElementById(id);
     const video = byId('video');
     const overlayCanvas = byId('overlay-canvas');
@@ -23,11 +12,21 @@
     const lapsContainer = byId('laps-container');
     const lapsList = byId('laps-list');
     const urlParams = new URLSearchParams(window.location.search);
-    const sessionId = urlParams.get('session');
+    const requestedSessionId = urlParams.get('session');
+    const invalidSession = requestedSessionId !== null && !validSessionId(requestedSessionId);
+    const sessionId = validSessionId(requestedSessionId) ? requestedSessionId : null;
+    const SESSION_KIND = 'pc';
+    const fragmentParams = new URLSearchParams(String(window.location.hash || '').replace(/^#/, ''));
+    const requestedInvite = fragmentParams.get('invite');
+    const validRequestedInvite = validInvite(requestedInvite) ? requestedInvite : null;
     const storageKey = sessionId ? `pt_pcmobil_recordedLaps:${sessionId}` : 'pt_pcmobil_recordedLaps:local';
     const queueStorageKey = 'pacetrack.result-sync.v1';
-    let database = null;
-    let firebaseReady = false;
+    let api = null;
+    let guestSession = null;
+    let backendReady = false;
+    let setupGeneration = 0;
+    let setupInFlight = false;
+    let capabilityMessage = null;
     let runtime = null;
     let fallbackFrame = 0;
     let runStartedAt = null;
@@ -36,9 +35,6 @@
     let recordedLaps = [];
     let localSaveFailed = false;
     let sync = null;
-    let firebaseConnectionRef = null;
-    let firebaseConnectionHandler = null;
-    let firebaseListenersAttached = false;
     let networkListenersAttached = false;
     let fallbackPaused = false;
 
@@ -48,6 +44,58 @@
         const seconds = Math.floor((safe % 60000) / 1000);
         const ms = Math.floor(safe % 1000);
         return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
+    }
+
+    function validSessionId(value) {
+        return typeof value === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value);
+    }
+
+    function validInvite(value) {
+        return typeof value === 'string' && /^[a-f0-9]{32}$/i.test(value);
+    }
+
+    function validResultId(value) {
+        return typeof value === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value);
+    }
+
+    function utf8ByteLength(value) {
+        try {
+            return encodeURIComponent(value).replace(/%[0-9A-F]{2}/gi, 'x').length;
+        } catch (_) {
+            return Infinity;
+        }
+    }
+
+    function safeTransportResult(targetSession, result) {
+        if (!validSessionId(sessionId) || targetSession !== sessionId || !validSessionId(targetSession)) {
+            throw new Error('La sesión de destino no coincide con la sesión móvil válida.');
+        }
+        if (!result || typeof result !== 'object' || Array.isArray(result) ||
+            result.sessionId !== targetSession || !validResultId(result.id)) {
+            throw new Error('El resultado no tiene una sesión vinculada o un identificador seguro válido.');
+        }
+        if (typeof result.elapsed !== 'number' || !Number.isFinite(result.elapsed) ||
+            result.elapsed < 0 || result.elapsed > 2592000000) {
+            throw new Error('La duración del resultado no está dentro de los límites permitidos.');
+        }
+        if (!['manual', 'automatic'].includes(result.method)) {
+            throw new Error('El método del resultado no es válido.');
+        }
+        if (typeof result.timestamp !== 'string' || result.timestamp.length > 40 ||
+            !Number.isFinite(Date.parse(result.timestamp))) {
+            throw new Error('La fecha del resultado no es válida.');
+        }
+        const safeResult = {
+            id: result.id,
+            elapsed: result.elapsed,
+            method: result.method,
+            timestamp: result.timestamp,
+            sessionId: targetSession
+        };
+        if (utf8ByteLength(JSON.stringify(safeResult)) > 2048) {
+            throw new Error('El resultado supera el tamaño máximo permitido.');
+        }
+        return safeResult;
     }
 
     function setSync(text, kind) {
@@ -62,8 +110,25 @@
     }
 
     function makeId() {
-        if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
-        return `r-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+        const secureCrypto = window.crypto;
+        if (secureCrypto && typeof secureCrypto.randomUUID === 'function') {
+            const generated = secureCrypto.randomUUID();
+            if (validSessionId(generated)) return generated;
+            throw new Error('No se pudo crear un identificador de resultado seguro.');
+        }
+        if (!secureCrypto || typeof secureCrypto.getRandomValues !== 'function') {
+            throw new Error('Este navegador no ofrece aleatoriedad criptográfica segura; no se puede crear el resultado.');
+        }
+        try {
+            const bytes = new Uint8Array(16);
+            secureCrypto.getRandomValues(bytes);
+            bytes[6] = (bytes[6] & 0x0f) | 0x40;
+            bytes[8] = (bytes[8] & 0x3f) | 0x80;
+            const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+            return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+        } catch (error) {
+            throw new Error(`No se pudo obtener aleatoriedad criptográfica segura: ${error.message}`);
+        }
     }
 
     function saveLocal() {
@@ -81,7 +146,7 @@
     function loadLocal() {
         try {
             let data = localStorage.getItem(storageKey);
-            if (!data) {
+            if (!data && requestedSessionId === null) {
                 data = localStorage.getItem('pt_pcmobil_recordedLaps') || localStorage.getItem('recordedLaps');
             }
             const parsed = data ? JSON.parse(data) : [];
@@ -159,8 +224,16 @@
         }
 
         const elapsed = Math.max(0, now - runStartedAt);
+        let resultId;
+        try {
+            resultId = makeId();
+        } catch (error) {
+            setSync(error.message, 'error');
+            statusMessage.textContent = error.message;
+            return;
+        }
         const result = {
-            id: makeId(),
+            id: resultId,
             elapsed: elapsed,
             method: currentMethod === method ? method : 'manual',
             timestamp: new Date().toISOString(),
@@ -181,7 +254,11 @@
         updateTriggerLabel();
         if (!stored) return;
         if (!sessionId) {
-            setSync('Sesión local: resultado guardado solo en este dispositivo.', 'local');
+            if (invalidSession) {
+                setSync('El código de sesión del enlace no es válido. El resultado se guardó solo en este dispositivo y no se sincronizará.', 'error');
+            } else {
+                setSync('Sesión local: resultado guardado solo en este dispositivo.', 'local');
+            }
             return;
         }
         if (!sync) {
@@ -190,8 +267,8 @@
         }
         try {
             sync.enqueue(result);
-            if (!firebaseReady) {
-                setSync('Resultado guardado y en cola local; Firebase no está disponible todavía.', 'pending');
+            if (!backendReady) {
+                setSync(`Resultado guardado en la cola local. ${capabilityMessage || 'Falta validar la vinculación Replit.'}`, 'pending');
             }
         } catch (error) {
             setSync('Resultado guardado en el dispositivo; no se pudo crear la cola de envío: ' + error.message, 'error');
@@ -227,30 +304,14 @@
         }
     }
 
-    function attachFirebaseConnection() {
-        if (!firebaseConnectionRef || !sync || firebaseListenersAttached) return;
-        if (!firebaseConnectionHandler) {
-            firebaseConnectionHandler = snapshot => sync && sync.setConnected(snapshot.val() === true);
-        }
-        firebaseConnectionRef.on('value', firebaseConnectionHandler, error => {
-            setSync('No se pudo comprobar la conexión con Firebase: ' + error.message, 'error');
-        });
-        firebaseListenersAttached = true;
-    }
-
-    function detachFirebaseConnection() {
-        if (firebaseConnectionRef && firebaseListenersAttached) {
-            firebaseConnectionRef.off('value', firebaseConnectionHandler);
-            firebaseListenersAttached = false;
-        }
-    }
-
     function handleOnline() {
-        if (sync) sync.setConnected(true);
+        if (sessionId) setupSession(true);
     }
 
     function handleOffline() {
+        backendReady = false;
         if (sync) sync.setConnected(false);
+        setSync('Sin conexión. Los resultados siguen guardados y en cola local.', 'pending');
     }
 
     function attachNetworkListeners() {
@@ -290,12 +351,19 @@
             storageKey: queueStorageKey,
             connected: false,
             transport: function (targetSession, result) {
-                if (!firebaseReady || !database) return Promise.reject(new Error('Firebase todavía no está disponible.'));
-                const safeResult = Object.assign({}, result);
-                delete safeResult.syncState;
-                delete safeResult.attempts;
-                delete safeResult.lastError;
-                return database.ref(`sessions/${targetSession}/results/${result.id}`).set(safeResult);
+                let safeResult;
+                try {
+                    safeResult = safeTransportResult(targetSession, result);
+                } catch (error) {
+                    return Promise.reject(error);
+                }
+                if (!backendReady || !api || !guestSession) {
+                    return Promise.reject(new Error('No hay una capacidad Replit de invitado validada para esta sesión.'));
+                }
+                return api.request(guestSession, `/results/${encodeURIComponent(safeResult.id)}`, {
+                    method: 'PUT',
+                    body: safeResult
+                });
             },
             onStatus: function (event) {
                 if (event.state === 'confirmed' && event.result) {
@@ -310,36 +378,94 @@
         });
     }
 
-    function setupFirebase(manualRetry) {
+    function validGuestCapability(candidate) {
+        return Boolean(candidate && candidate.id === sessionId && validSessionId(candidate.id) &&
+            typeof candidate.token === 'string' && candidate.token.length > 0);
+    }
+
+    function removeInvitationFromUrl() {
+        if (!validRequestedInvite || !window.history || typeof window.history.replaceState !== 'function') return;
+        const cleanUrl = `${window.location.pathname}${window.location.search}`;
+        window.history.replaceState(null, '', cleanUrl);
+    }
+
+    async function setupSession(manualRetry) {
         if (!sessionId) {
-            setSync('Sesión local: no se ha recibido un QR. Los resultados quedan en este dispositivo.', 'local');
+            const message = invalidSession
+                ? 'El código de sesión del enlace no es válido. Se usará únicamente el almacenamiento local; no se sincronizará.'
+                : 'Sesión local: no se ha recibido un QR. Los resultados quedan en este dispositivo.';
+            setSync(message, invalidSession ? 'error' : 'local');
+            if (invalidSession) statusMessage.textContent = message;
             return;
         }
+        attachNetworkListeners();
+        if (setupInFlight) return;
+        const generation = ++setupGeneration;
+        backendReady = false;
+        byId('retry-sync-button').hidden = false;
+        if (!window.PaceTrackResultSync) {
+            setSync('Módulo de sincronización no disponible; los resultados permanecen guardados localmente.', 'error');
+            return;
+        }
+        createSyncQueue();
+        reconcileLocalResults();
+        if (sync) sync.setConnected(false);
+        setupInFlight = true;
         try {
-            const retryButton = byId('retry-sync-button');
-            retryButton.hidden = false;
-            if (!window.PaceTrackResultSync) {
-                setSync('Módulo de sincronización no disponible; los resultados permanecen guardados localmente.', 'error');
-                return;
+            api = window.PaceTrackSessionAPI;
+            if (!api || typeof api.request !== 'function' || typeof api.load !== 'function') {
+                throw new Error('La API de sesiones Replit no está disponible; los resultados quedan en cola local.');
             }
-            createSyncQueue();
-            reconcileLocalResults();
-            if (!window.firebase || !firebase.database || !firebase.initializeApp) {
-                firebaseReady = false;
-                setSync('Firebase no está disponible. Los resultados de esta sesión permanecen en la cola local.', 'error');
-                return;
+            let capability = await api.load('guest', sessionId);
+            if (generation !== setupGeneration) return;
+            if (capability && !validGuestCapability(capability)) {
+                throw new Error('La capacidad guardada no pertenece a la sesión de este QR.');
             }
-            if (!firebase.apps || !firebase.apps.length) firebase.initializeApp(firebaseConfig);
-            database = firebase.database();
-            firebaseReady = true;
-            if (!firebaseConnectionRef) firebaseConnectionRef = database.ref('.info/connected');
-            attachFirebaseConnection();
-            attachNetworkListeners();
-            if (manualRetry) sync.retry();
-            else sync.flush();
+            if (!capability) {
+                if (!validRequestedInvite) {
+                    throw new Error('Falta el código secreto de invitación. Escanea el QR actual para vincular esta sesión; no se ha enviado ningún resultado.');
+                }
+                if (typeof api.join !== 'function') throw new Error('La vinculación segura Replit no está disponible.');
+                capability = await api.join(SESSION_KIND, validRequestedInvite);
+                if (generation !== setupGeneration) return;
+                if (!validGuestCapability(capability)) {
+                    throw new Error('La invitación no pertenece a la sesión indicada por este QR; no se guardó ninguna capacidad.');
+                }
+                if (api.save('guest', capability) === false) {
+                    throw new Error('La sesión se vinculó, pero la capacidad no se pudo guardar para reintentos.');
+                }
+                if (typeof api.saveInvitation === 'function') {
+                    api.saveInvitation(SESSION_KIND, validRequestedInvite, capability);
+                }
+                guestSession = Object.assign({}, capability, { role: 'guest' });
+                removeInvitationFromUrl();
+            } else {
+                guestSession = Object.assign({}, capability, { role: 'guest' });
+            }
+            const info = await api.request(guestSession, '', { method: 'GET' });
+            if (generation !== setupGeneration) return;
+            if (!info || info.id !== sessionId || info.kind !== SESSION_KIND || info.role !== 'guest') {
+                throw new Error('El servidor no confirmó la capacidad de invitado para la sesión del QR.');
+            }
+            backendReady = true;
+            capabilityMessage = null;
+            if (sync) {
+                sync.setConnected(true);
+                if (manualRetry) await sync.retry();
+                else await sync.flush();
+            }
+            removeInvitationFromUrl();
+            if (sync && sync.getQueue(sessionId).length) updateSyncSummary();
+            else setSync('Sesión Replit validada; los resultados nuevos se enviarán con la capacidad de invitado.', 'local');
         } catch (error) {
-            firebaseReady = false;
-            setSync('No se pudo iniciar Firebase: ' + error.message + '. El guardado local sigue activo.', 'error');
+            if (generation === setupGeneration) {
+                backendReady = false;
+                if (sync) sync.setConnected(false);
+                capabilityMessage = error.message;
+                setSync(`No se pudo validar la sesión Replit: ${error.message}. Los resultados permanecen guardados en cola local.`, 'error');
+            }
+        } finally {
+            if (generation === setupGeneration) setupInFlight = false;
         }
     }
 
@@ -460,12 +586,12 @@
 
     loadLocal();
     installRuntime();
-    setupFirebase();
+    setupSession(false);
     resetButton.addEventListener('click', confirmReset);
     byId('export-local-results').addEventListener('click', exportHistory);
     byId('retry-sync-button').addEventListener('click', () => {
         try {
-            setupFirebase(true);
+            setupSession(true);
         } catch (error) {
             setSync('No se pudo reintentar el envío: ' + error.message, 'error');
         }
@@ -477,7 +603,9 @@
             fallbackFrame = 0;
             fallbackPaused = true;
         }
-        detachFirebaseConnection();
+        setupGeneration += 1;
+        setupInFlight = false;
+        backendReady = false;
         if (sync) {
             if (event.persisted) sync.setConnected(false);
             else sync.dispose();
@@ -488,8 +616,7 @@
     });
     window.addEventListener('pageshow', event => {
         if (!event.persisted) return;
-        attachFirebaseConnection();
-        if (sync) sync.flush();
+        setupSession(false);
         if (fallbackPaused && !runtime) {
             fallbackPaused = false;
             function frame(now) {
